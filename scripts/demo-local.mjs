@@ -50,7 +50,7 @@ if (serverType !== "ollama") {
 
 // 2. Ensure the alias exists (Ollama only). Uses the HTTP /api/copy endpoint
 //    so it works even without the `ollama` CLI on PATH.
-if (serverType === "ollama" && !localModels.includes(registryName)) {
+if (serverType === "ollama" && !localModels.some((n) => n === registryName || n.startsWith(`${registryName}:`))) {
 	// Pick a source model: explicit MODEL_SOURCE > largest chat model heuristically.
 	const source = modelSource ?? localModels[0]
 	if (!source) {

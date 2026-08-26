@@ -1,6 +1,7 @@
 import {
 	AgenticEnvironment,
 	BaseParticipant,
+	DeveloperMessageItem,
 	ModelContext,
 	ModelMessageItem,
 	UserMessageItem,
@@ -25,9 +26,17 @@ export class TriageAgent extends BaseParticipant {
 		private readonly llm: boolean,
 	) {
 		super()
-		// Only react to telemetry, not to other agents' chatter (that's the
-		// commander's job).
-		this.listens = []
+		// Role + format contract: short, incident-specific, ends with one action.
+		this.context.addContextItem(
+			DeveloperMessageItem.create(
+				`You are the triage specialist in a live incident war room. Telemetry arrives in real time; other agents (log analyst, risk commander) are working the same incident in parallel.
+Rules:
+- Reply in at most 3 short sentences. No markdown, no headings, no lists.
+- Name the most likely root cause, referencing the specific service/metric/error you were given.
+- End with exactly one concrete next action, prefixed "ACTION:".
+- Never give generic advice or explain what a metric means — the room already knows.`,
+			),
+		)
 	}
 
 	async onMessage(message: string): Promise<void> {
