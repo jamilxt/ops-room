@@ -66,20 +66,33 @@ header h2{font-size:15px}#mode{font-size:11px;color:var(--dim)}#run{margin-left:
 <div id="feed"><div class="sys">Starting scenario…</div></div>
 </main>
 <script>
+window.onerror=function(m){document.title="JS ERROR: "+m}
 const AGENTS={system:["⚙","#8892a5"],deploy:["🚀","#c98ee8"],alert:["🔔","#e8a33d"],metric:["📈","#54c7ec"],log:["📄","#9aa5b1"],triage:["🩺","#54c7ec"],sleuth:["🔍","#2bac76"],commander:["🎖","#e85b5b"],comms:["📣","#c98ee8"],oncall:["🙋","#ffd75e"]}
+// NOTE: this page is served from a TS template literal — every stray backslash
+// would be eaten before it reaches the browser. No regexes below on purpose.
 const WHY={HOLD:"An agent moved without proof — the referee held it until it cites confirmed evidence.",ESCALATION:"Two strikes ungrounded: automated review is over, the human decides.",decision:"The human verdict lands on the shared bus — every agent hears it.",signature:"Ground truth from raw logs, before any opinion forms.",default:"Parallel specialists negotiating on one bus — no orchestrator."}
 let es,pending=null
 const feed=document.getElementById("feed"),side=document.getElementById("sidebar")
-function why(line){for(const k of["ESCALATION","HOLD"])if(line.includes(k))return WHY[k]
- if(/\[sleuth\].*error signature/.test(line))return WHY.signature
- if(/^\s*\[?(oncall\] human decision|✔)/.test(line))return WHY.decision
+function why(line){
+ if(line.indexOf("ESCALATION")>=0)return WHY.ESCALATION
+ if(line.indexOf("HOLD")>=0)return WHY.HOLD
+ if(line.indexOf("[sleuth]")>=0&&line.indexOf("error signature")>=0)return WHY.signature
+ if(line.indexOf("human decision")>=0||line.indexOf("auto-review")>=0||line.indexOf("✔")>=0)return WHY.decision
  return WHY.default}
+// NOTE: el() receives HTML built ONLY from server-owned constants and class
+// names — every agent/model-derived string is injected via .textContent.
 function el(html){const t=document.createElement("template");t.innerHTML=html.trim();return t.content.firstChild}
-function addRow(line){const m=line.match(/^(T\\+[\\d.]+s)?\\s*(?:\\[([a-z]+)\\])?\\s*(.*)$/)
- const who=m[2]||"system",body=(m[3]||line).replace(new RegExp("^\\\\["+who+"\\\\]\\\\s*"),"")
- const info=AGENTS[who]||AGENTS.system
- const cls=/HOLD|ESCALATION|⚠/.test(line)?"risk":/human decision|auto-review/.test(line)?"decision":""
- const r=el('<div class="row '+cls+'"><div class="avatar" style="background:'+info[1]+'22">'+info[0]+'</div><div><div class="meta"><b>'+who+'</b><time>'+((m[1]||"").replace(/^T\\+/,"+")||"")+'</time></div><div class="body"></div>'+(cls?"<div class='why'>"+why(line)+"</div>":"")+'</div></div>')
+function parseTag(rest){for(const k of Object.keys(AGENTS)){if(k!=="system"&&rest.indexOf("["+k+"] ")===0)return k}return null}
+function addRow(line){
+ let rest=line.trim(),ts=""
+ if(rest.indexOf("T+")===0){const sp=rest.indexOf("s ");if(sp>0){ts="+"+rest.slice(2,sp);rest=rest.slice(sp+1).trim()}}
+ const who=parseTag(rest)||"system"
+ const body=rest.replace("["+who+"] ","")
+ const info=AGENTS[who]
+ const risk=line.indexOf("HOLD")>=0||line.indexOf("ESCALATION")>=0||line.indexOf("⚠")>=0
+ const dec=line.indexOf("human decision")>=0||line.indexOf("auto-review")>=0||line.indexOf("✔")>=0
+ const cls=risk?"risk":dec?"decision":""
+ const r=el('<div class="row '+cls+'"><div class="avatar" style="background:'+info[1]+'22">'+info[0]+'</div><div><div class="meta"><b>'+who+'</b><time>'+ts+'</time></div><div class="body"></div>'+(cls?"<div class='why'>"+why(line)+"</div>":"")+'</div></div>')
  r.querySelector(".body").textContent=body
  feed.appendChild(r);r.scrollIntoView({block:"end"});return r}
 function addEscalation(text){pending=el('<div class="escalation"><h3>⏸ Human decision required</h3><p></p><button id="yes">Approve</button><button id="no">Reject</button></div>')
@@ -87,7 +100,7 @@ function addEscalation(text){pending=el('<div class="escalation"><h3>⏸ Human d
  feed.appendChild(pending);pending.scrollIntoView({block:"center"})
  pending.querySelector("#yes").onclick=()=>decide(true);pending.querySelector("#no").onclick=()=>decide(false)}
 function decide(approved){if(!pending)return;const n=pending;pending=null
- n.innerHTML='<h3>'+(approved?"✅ Approved":"⛔ Rejected")+' — sent to the room</h3>'
+ n.innerHTML="<h3>"+(approved?"✅ Approved":"⛔ Rejected")+" — sent to the room</h3>"
  fetch("/decision",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({answer:approved?"y":"n"})})}
 function render(line){feed.querySelector(".sys")?.remove()
  addRow(line)}
@@ -95,16 +108,14 @@ function start(){es=new EventSource("/events")
  es.onmessage=(ev)=>{const d=JSON.parse(ev.data)
   if(d.type==="row")render(d.line)
   else if(d.type==="escalation")addEscalation(d.text)
+  else if(d.type==="reset"){pending=null;feed.innerHTML='<div class="sys">Starting scenario…</div>'}
   else if(d.type==="summary"){render("");const r=addRow("[comms] ✔ Run complete — "+d.line);r.classList.add("revise")}
   else if(d.type==="hello"){document.getElementById("mode").textContent=d.mode}}
  es.onerror=()=>{/* server restarting between runs */}}
 document.getElementById("run").onclick=async()=>{await fetch("/run",{method:"POST"});}
 start()
 fetch("/agents").then(r=>r.json()).then(list=>{list.forEach(a=>{const i=AGENTS[a.id]||AGENTS.system
- side.insertAdjacentHTML("beforeend",'<div class="agent" id="ag-'+a.id+'"><span class="dot"></span><span>'+i[0]+'</span><span>'+a.name+" — "+a.role+"</span></div>")})})
-// highlight whoever spoke most recently
-new MutationObserver(()=>{}).observe(feed,{childList:true})
-setInterval(()=>{},1<<30)
+ side.insertAdjacentHTML("beforeend",'<div class="agent" id="ag-'+a.id+'"><span class="dot"></span><span>'+i[0]+"</span><span>"+a.name+" — "+a.role+"</span></div>")})})
 </script>
 </body>
 </html>`
