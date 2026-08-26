@@ -79,7 +79,10 @@ setTimeout(() => {
 	// in the timeline artifact the scribe writes. Local LLMs can take >12s to
 	// synthesize, so poll for publication instead of a blind sleep.
 	comms.finish()
-	const deadline = Date.now() + 60_000
+	// Real-hardware data point: an 8B behind several queued inferences on one
+	// Ollama endpoint needed >60s to synthesize. 120s keeps the summary
+	// correct on slow machines; fast environments just never hit the cap.
+	const deadline = Date.now() + 120_000
 	const poll = setInterval(() => {
 		if (comms.published || Date.now() > deadline) {
 			clearInterval(poll)
