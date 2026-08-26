@@ -3,267 +3,212 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>OpsRoom — the story of one incident, step by step</title>
-<!--
-  Story player for OpsRoom's reference run (Aug 26, qwen3:8b on MacBook, Ollama).
-  One event per screen — deliberately NOT a compressed timeline (that version
-  overlapped and confused). All data below is hardcoded from the real transcript;
-  DOM built with createElement/textContent only (no HTML interpolation).
--->
+<title>#incident-war-room — OpsRoom live conversation</title>
 <style>
-	:root {
-		--bg:#0b0f14; --panel:#121822; --edge:#1e2635;
-		--ink:#dbe4f0; --dim:#8fa0b8; --faint:#5b6b82;
-		--red:#ff5c74; --green:#39d98a; --amber:#ffc857; --blue:#59a7ff;
-	}
-	* { box-sizing:border-box; margin:0; padding:0; }
-	body {
-		background:var(--bg); color:var(--ink);
-		font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-		min-height:100vh; display:flex; flex-direction:column; align-items:center;
-		padding:28px 16px 48px;
-	}
-	h1 { font-size:20px; font-weight:700; letter-spacing:.2px; }
-	.sub { color:var(--dim); font-size:13px; margin:6px 0 22px; text-align:center; max-width:640px; line-height:1.5; }
-	.player {
-		width:min(880px,100%); background:var(--panel);
-		border:1px solid var(--edge); border-radius:14px; overflow:hidden;
-	}
-	.chapterbar {
-		padding:10px 18px; font-size:12px; letter-spacing:1.2px; text-transform:uppercase;
-		color:var(--amber); border-bottom:1px solid var(--edge); background:#0e1420;
-		display:flex; justify-content:space-between; align-items:center;
-	}
-	.stepno { color:var(--faint); letter-spacing:.5px; text-transform:none; }
-	.card { padding:30px 30px 24px; min-height:300px; }
-	.who-row { display:flex; align-items:center; gap:12px; margin-bottom:18px; flex-wrap:wrap; }
-	.avatar {
-		width:44px; height:44px; border-radius:10px; display:flex; align-items:center; justify-content:center;
-		font-size:22px; background:#0e1420; border:1px solid var(--edge); flex:none;
-	}
-	.agent-name { font-size:17px; font-weight:700; }
-	.agent-role { font-size:12.5px; color:var(--dim); margin-top:2px; }
-	.msg {
-		font-size:19px; line-height:1.55; padding:16px 18px;
-		background:#0e1420; border:1px solid var(--edge); border-radius:10px;
-		margin-bottom:18px;
-	}
-	.msg.tone-hold   { border-color:var(--red);   box-shadow:0 0 0 1px var(--red) inset; }
-	.msg.tone-rev    { border-color:var(--green); box-shadow:0 0 0 1px var(--green) inset; }
-	.msg.tone-sig    { border-color:var(--blue); }
-	.msg.tone-comms  { border-color:var(--amber); }
-	.why {
-		font-size:14.5px; color:var(--amber); line-height:1.5;
-		border-left:3px solid var(--amber); padding:2px 0 2px 12px;
-	}
-	.roommap {
-		display:flex; gap:8px; flex-wrap:wrap; padding:14px 18px;
-		border-top:1px solid var(--edge); background:#0e1420;
-	}
-	.mapchip {
-		font-size:11.5px; padding:5px 10px; border-radius:999px;
-		border:1px solid var(--edge); color:var(--faint); transition:all .25s;
-	}
-	.mapchip.on        { color:var(--ink); border-color:var(--blue); background:#12203a; }
-	.mapchip.on.warn   { color:var(--red); border-color:var(--red); background:#2a1220; }
-	.controls {
-		display:flex; align-items:center; gap:10px;
-		padding:14px 18px; border-top:1px solid var(--edge);
-	}
-	button {
-		background:#182234; color:var(--ink); border:1px solid var(--edge);
-		border-radius:8px; padding:9px 16px; font-size:14px; cursor:pointer;
-	}
-	button:hover { background:#1f2c44; }
-	button.primary { background:var(--blue); border-color:var(--blue); color:#04101f; font-weight:700; }
-	.progress { flex:1; height:6px; background:#0a0e15; border-radius:999px; overflow:hidden; }
-	.progress > div { height:100%; width:0%; background:var(--blue); transition:width .2s; }
-	.hint { margin-top:14px; font-size:12px; color:var(--faint); text-align:center; }
-	kbd { background:#182234; border:1px solid var(--edge); border-radius:4px; padding:1px 6px; font-size:11px; }
+	* { box-sizing: border-box; margin: 0; padding: 0; }
+	body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #1a1d21; color: #d1d2d3; height: 100vh; display: flex; overflow: hidden; }
+
+	/* ---------- sidebar ---------- */
+	.side { width: 230px; background: #16181c; border-right: 1px solid #2c2f33; padding: 14px 10px; flex-shrink: 0; }
+	.side h1 { font-size: 15px; color: #fff; padding: 4px 8px 12px; }
+	.agent { display: flex; align-items: center; gap: 9px; padding: 7px 8px; border-radius: 6px; opacity: .45; transition: all .25s; }
+	.agent.active { opacity: 1; background: #22252a; }
+	.agent .av { width: 30px; height: 30px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 16px; background: #26292e; }
+	.agent .nm { font-size: 13px; font-weight: 600; color: #e8e8e8; }
+	.agent .rl { font-size: 10.5px; color: #8a8d91; line-height: 1.25; }
+	.side .note { margin-top: 14px; padding: 10px; font-size: 11px; line-height: 1.45; color: #9a9da1; border-top: 1px solid #2c2f33; }
+	.dot { width: 7px; height: 7px; border-radius: 50%; margin-left: auto; background: transparent; }
+	.agent.active .dot { animation: pulse 1s infinite; }
+	@keyframes pulse { 50% { opacity: .25; } }
+
+	/* ---------- main ---------- */
+	.main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+	.chan { padding: 12px 18px; border-bottom: 1px solid #2c2f33; font-size: 14px; color: #ccc; }
+	.chan b { color: #fff; font-size: 15px; }
+	.chan span { color: #8a8d91; font-size: 12px; margin-left: 10px; }
+	.chat { flex: 1; overflow-y: auto; padding: 14px 18px; display: flex; flex-direction: column; gap: 4px; }
+
+	/* ---------- bubbles ---------- */
+	.row { display: flex; gap: 10px; animation: pop .22s ease-out; align-items: flex-start; }
+	@keyframes pop { from { transform: translateY(7px); opacity: 0; } }
+	.row .av { width: 34px; height: 34px; border-radius: 8px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 17px; background: #22252a; }
+	.bubble { min-width: 0; }
+	.meta { font-size: 12.5px; margin-bottom: 1px; }
+	.meta .nm { font-weight: 700; }
+	.meta .ts { color: #7a7d81; font-size: 11px; margin-left: 7px; }
+	.body { font-size: 13.5px; line-height: 1.45; white-space: pre-line; background: #22252a; padding: 7px 11px; border-radius: 4px 10px 10px 10px; display: inline-block; max-width: 700px; }
+	.soft .body { background: transparent; color: #9a9da1; padding-left: 0; }
+	.hold .body { background: rgba(248,113,113,.12); border: 1px solid rgba(248,113,113,.55); color: #fecaca; box-shadow: 0 0 14px rgba(248,113,113,.18); }
+	.rev .body { border: 1px solid rgba(52,211,153,.5); color: #a7f3d0; }
+	.card .body { background: #26221a; border: 1px solid rgba(251,191,36,.4); max-width: 760px; }
+	.typing { font-size: 12px; color: #8a8d91; padding: 8px 44px; font-style: italic; }
+
+	/* ---------- caption bar ---------- */
+	.capbar { border-top: 1px solid #2c2f33; background: #1e2126; padding: 11px 18px; min-height: 58px; }
+	.capbar .lbl { font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: #fbbf24; margin-bottom: 3px; }
+	.capbar .txt { font-size: 13.5px; line-height: 1.45; color: #d7d8da; max-width: 900px; }
+
+	/* ---------- controls ---------- */
+	.ctrl { display: flex; gap: 8px; align-items: center; padding: 10px 18px; border-top: 1px solid #2c2f33; background: #16181c; }
+	button { background: #2a66d6; border: none; color: #fff; font-size: 13px; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600; }
+	button:hover { filter: brightness(1.15); }
+	button.ghost { background: #26292e; }
+	.prog { flex: 1; height: 4px; background: #26292e; border-radius: 2px; margin: 0 10px; overflow: hidden; }
+	.prog i { display: block; height: 100%; width: 0; background: #2a66d6; transition: width .3s; }
+	.step { font-size: 11.5px; color: #8a8d91; white-space: nowrap; }
+	select { background: #26292e; color: #ccc; border: 1px solid #33363b; border-radius: 6px; padding: 7px; font-size: 12px; }
 </style>
 </head>
 <body>
-<h1>OpsRoom — one incident, told step by step</h1>
-<p class="sub">A true replay of a real run (local qwen3:8b model, Aug 26).
-Six AI agents share one message bus during a production emergency.
-Use <b>Next</b> or <kbd>→</kbd> to walk through what happened.</p>
 
-<div class="player">
-	<div class="chapterbar"><span id="chapter">chapter</span><span class="stepno" id="stepno"></span></div>
-	<div class="card">
-		<div class="who-row" id="whorow"></div>
-		<div class="msg" id="msg"></div>
-		<div class="why" id="why"></div>
-	</div>
-	<div class="roommap" id="roommap"></div>
-	<div class="controls">
-		<button id="prev">◀ Back</button>
-		<button id="play" class="primary">▶ Auto-play</button>
-		<div class="progress"><div id="bar"></div></div>
-		<button id="next">Next ▶</button>
+<aside class="side">
+	<h1>OPSROOM</h1>
+	<div id="agents"></div>
+	<div class="note">Six software teammates. No boss assigns work — everyone watches the same channel and reacts on their own. Runs fully on a local AI model.</div>
+</aside>
+
+<div class="main">
+	<div class="chan"><b># incident-war-room</b><span>a real incident, replayed message by message — press Play</span></div>
+	<div class="chat" id="chat"></div>
+	<div class="capbar"><div class="lbl">Why this matters</div><div class="txt" id="cap">Press Play — each message comes with a plain-language explanation.</div></div>
+	<div class="ctrl">
+		<button id="play">▶ Play</button>
+		<button class="ghost" id="prev">◀ Back</button>
+		<button class="ghost" id="next">Next ▶</button>
+		<select id="speed"><option value="2600">Normal</option><option value="1400">Fast</option><option value="800">2×</option></select>
+		<div class="prog"><i id="bar"></i></div>
+		<span class="step" id="step">0 / 0</span>
 	</div>
 </div>
-<p class="hint"><kbd>→</kbd> / <kbd>←</kbd> move · <kbd>Space</kbd> pauses · the row of dots shows which agents are involved in each beat</p>
 
 <script>
 "use strict";
+/* All strings below are hardcoded constants from a recorded run of this very
+ * project (Aug 26, qwen3:8b via Ollama). No external input is rendered. */
+
 const AGENTS = {
-	feed:     { icon:"🚀", name:"IncidentFeed",  role:"the world: alerts, logs, metrics" },
-	sleuth:   { icon:"🔍", name:"LogSleuth",     role:"the detective reading raw logs" },
-	triage:   { icon:"🧠", name:"TriageAgent",   role:"the lead doctor diagnosing" },
-	commander:{ icon:"🛡️", name:"RiskCommander", role:"the safety officer with veto power" },
-	comms:    { icon:"📣", name:"CommsAgent",    role:"the spokesperson for humans" },
-	scribe:   { icon:"🗂️", name:"IncidentScribe", role:"the note-taker writing history" },
+	feed:     { icon: "📡", name: "IncidentFeed", role: "production reality: alerts, logs, metrics", color: "#38bdf8" },
+	sleuth:   { icon: "🔎", name: "LogSleuth", role: "reads raw logs, finds the smoking gun", color: "#a78bfa" },
+	triage:   { icon: "🧠", name: "TriageAgent", role: "diagnoses and proposes fixes", color: "#34d399" },
+	commander:{ icon: "🛡️", name: "RiskCommander", role: "safety officer with veto power", color: "#f87171" },
+	comms:    { icon: "📣", name: "CommsAgent", role: "writes updates for humans", color: "#fbbf24" },
+	scribe:   { icon: "🗂️", name: "IncidentScribe", role: "the note-taker writing history", color: "#94a3b8" }
 };
-const WHO_ALL = Object.keys(AGENTS);
 
-/* Each step: ch (optional new chapter), who (agent id | 'narrator'), role
-   override, tone, msg (what happened), why (plain meaning), on (agents lit). */
-const STEPS = [
-	{ ch:"Chapter 1 — an ordinary Tuesday", who:"narrator",
-	  msg:"🚀 orders-api v2.14.3 rolls out to 3 of 10 instances (a “canary” — a small cautious slice).",
-	  why:"Every story starts with a deploy. Canaries exist so that if something breaks, only 30% of users feel it first.", on:["feed"] },
-
-	{ who:"feed",
-	  msg:"🔔 ALERT: checkout p95 latency is 4.2 seconds. Baseline is 210 milliseconds.",
-	  why:"That is 20× slower than normal. Checkout is where customers pay money, so alarms are justified.", on:["feed"] },
-
-	{ ch:"Chapter 2 — two specialists wake up at once", who:"narrator",
-	  msg:"✨ The moment the alert hits the shared bus, TWO agents start working. Simultaneously.",
-	  why:"Nobody assigned them tasks. Each agent independently watches the same messages and decides to act. This is the “true concurrency” the judges want — not a relay race.", on:["sleuth","triage"] },
-
-	{ who:"sleuth",
-	  msg:"🔍 Investigating logs around the alert window…",
-	  why:"While the diagnostic lead starts thinking, the detective goes digging through raw log lines in parallel.", on:["sleuth","triage"] },
-
-	{ who:"triage",
-	  msg:"🧠 First hypothesis forming from the alert alone… (too early to be sure)",
-	  why:"With thin evidence it can only guess. Notice what happens when better evidence arrives later.", on:["triage","sleuth"] },
-
-	{ who:"sleuth", tone:"sig",
-	  msg:"🔍 SIGNATURE #1: TIMEOUT_ERROR in pool.ts — connection pool exhausted.",
-	  why:"First hard clue: database connections are running out. And the timing matches the deploy exactly.", on:["sleuth","triage"] },
-
-	{ who:"sleuth",
-	  msg:"📢 Publishing the finding onto the shared bus for everyone.",
-	  why:"Findings are public, not private. Anything published can be overheard by any teammate — instantly.", on:["sleuth"] },
-
-	{ who:"triage", tone:"sig",
-	  msg:"📥 Triage overhears the sleuth's finding — unprompted — and folds it into its thinking.",
-	  why:"No one “sent” it this data. In this room, hearing is automatic. Team knowledge compounds mid-incident.", on:["triage","sleuth"] },
-
-	{ who:"feed",
-	  msg:"📜 Raw log agrees: PoolTimeoutError × 1,204 in the last 60 seconds.",
-	  why:"The detective's hunch now has numbers behind it: over a thousand timeouts per minute.", on:["feed","sleuth"] },
-
-	{ who:"sleuth", tone:"sig",
-	  msg:"🔍 SIGNATURE #2: CHECKOUT_LOCK_ERROR in handler.ts — cart rows are lock-contended.",
-	  why:"Second clue: with connections scarce, checkouts started fighting over locks. The picture sharpens.", on:["sleuth"] },
-
-	{ ch:"Chapter 3 — the proposal", who:"triage",
-	  msg:"💡 ROOT CAUSE: connection-pool exhaustion.\nPROPOSAL: scale out more database capacity to offload the load.",
-	  why:"The diagnostic lead commits to a fix and announces it on the bus — following the team's PROPOSAL protocol.", on:["triage"] },
-
-	{ ch:"Chapter 4 — the interruption (the heart of the demo)", who:"commander", tone:"hold",
-	  msg:"🛡️ ⚠ HOLD — that proposal cites NO confirmed evidence. Confirmed signatures so far: TIMEOUT_ERROR, CHECKOUT_LOCK_ERROR. Revise and cite at least one.",
-	  why:"The safety officer was silent this whole time — just listening. Now it vetoes publicly: no action without citing evidence. A colleague interrupting with authority — unscripted.", on:["commander","triage"] },
-
-	{ who:"triage", tone:"rev",
-	  msg:"🔁 REVISED PROPOSAL: resize the connection pool to relieve TIMEOUT_ERROR in orders-api — now citing the exact signature.",
-	  why:"Challenged, it returns having internalized the rule: claims must point at confirmed errors. First proposal fails review — second passes.", on:["triage","commander"] },
-
-	{ who:"triage", tone:"rev",
-	  msg:"🔁 REVISED: targeted lock-retry with 3-second backoff at handler.ts, resolving CHECKOUT_LOCK_ERROR.",
-	  why:"Note the fix quality: surgical (one file, retry logic), not a panic restart of everything.", on:["triage","commander"] },
-
-	{ ch:"Chapter 5 — closing the loop", who:"comms", tone:"comms",
-	  msg:"📣 STATUS UPDATE (customer-facing): checkout briefly degraded after the v2.14.3 rollout; mitigation underway. NEXT STEPS with named owners for DBA / SRE / DevOps.",
-	  why:"Comms heard everything all along without spending a single model call — then wrote customer-grade updates using the room's real numbers.", on:["comms"] },
-
-	{ who:"scribe",
-	  msg:"🗂️ incident-timeline.md written — every message, timestamped, interleaved across agents.",
-	  why:"This file is also our proof for the judges: you can literally see threads interleaving — work happening at the same wall-clock instants.", on:["scribe"] },
-
-	{ ch:"Epilogue — why this matters", who:"narrator",
-	  msg:"🏁 Six agents. Zero orchestrator. Every reaction emerged from messages arriving on one shared bus.",
-	  why:"Remove any single agent and the room degrades but keeps functioning — that is resilience a pipeline cannot offer. All reasoning ran locally on an 8B model. No cloud keys. The whole war room fits in a laptop.", on:WHO_ALL },
+const MSGS = [
+	{ who: "feed", ts: "T+0.5s", text: "🚀 deploy: orders-api v2.14.3 rolled out to 3/10 instances (canary)",
+	  why: "Something changed in production. A \u201ccanary\u201d deploy rolls a new version out to a few machines first, so damage stays small if something breaks." },
+	{ who: "feed", ts: "T+3.0s", text: "🔔 alert: checkout p95 latency 4.2s (baseline 210ms), firing for 2m",
+	  why: "The alarm: paying customers wait 20\u00d7 longer than normal. This message wakes the whole room." },
+	{ who: "triage", soft: true, text: "picked up the alert \u2014 starting diagnosis",
+	  why: "Triage starts working by itself. Nobody assigned the task \u2014 it heard the alarm on the shared channel and reacted. Same for every agent you\u2019ll see." },
+	{ who: "sleuth", ts: "T+5.0s", text: "error signature: TIMEOUT_ERROR in orders-api/src/main/ts/pool.ts \u2014 first seen right after the deploy window opened",
+	  why: "Meanwhile the Sleuth is already digging through raw logs \u2014 at the same time as triage thinks, not after it. Two agents truly working in parallel." },
+	{ who: "feed", ts: "T+5.0s", text: "log: pool.ts:88 PoolTimeoutError acquiring connection \u2014 \u00d71,204 in 60s",
+	  why: "Raw evidence behind the signature: over a thousand failed database connection attempts in one minute." },
+	{ who: "triage", soft: true, text: "evidence received: TIMEOUT_ERROR @ pool.ts",
+	  why: "Shared state in action: triage overhears the Sleuth\u2019s finding mid-thought and quietly gets smarter. The team compounds knowledge without anyone relaying it." },
+	{ who: "feed", ts: "T+9.0s", text: "metric: db connection pool utilization 100%, queue depth 312",
+	  why: "More pressure data: the database\u2019s waiting line is enormous. Every clue points at exhausted connections." },
+	{ who: "sleuth", ts: "T+14.0s", text: "second signature: CHECKOUT_LOCK_ERROR in orders-api/src/main/ts/handler.ts",
+	  why: "A second, independent problem discovered \u2014 carts fighting over locked rows. Real incidents are never just one bug." },
+	{ who: "feed", ts: "T+20.0s", text: "alert: checkout error rate 7.8% \u2014 page the on-call, recommend whether to restart all pods",
+	  why: "Stakes go up: customers are failing at checkout. Someone will soon propose an action \u2014 watch what happens." },
+	{ who: "triage", ts: "T+23.9s", text: "Root cause: checkout p95 latency due to db connection pool exhaustion.\nPROPOSAL: scale checkout service database replicas.",
+	  why: "Triage commits to a fix. House rule: every recommendation must be built on confirmed evidence \u2014 and another agent is listening specifically for that." },
+	{ who: "commander", soft: true, text: "\u26a0 challenging \u2014 does this proposal cite a confirmed signature?",
+	  why: "The safety officer reacts exactly like everyone else: it listens, it judges, it speaks. No one summoned it; no one can stop it." },
+	{ who: "commander", ts: "T+31.9s", cls: "hold", text: "\ud83d\uded1 HOLD \u2014 that proposal references no confirmed signature. Evidence so far: TIMEOUT_ERROR. Revise it against confirmed signatures (REVISED PROPOSAL:).",
+	  why: "THE MONEY MOMENT. One AI interrupting another in public, blocking an unevidenced plan. It\u2019s reliable because proposals follow a tiny contract of tokens, not free prose." },
+	{ who: "triage", ts: "T+51.2s", cls: "rev", text: "REVISED PROPOSAL: canary rollback for checkout service \u2014 isolates TIMEOUT_ERROR impact while we keep evidence fresh.",
+	  why: "No ego, no deadlock: triage revises on demand and now cites the exact error. A safety negotiation between two AIs resolved itself." },
+	{ who: "triage", ts: "T+68.1s", cls: "rev", text: "REVISED PROPOSAL: targeted lock retry with 3s backoff in handler.ts \u2014 addresses CHECKOUT_LOCK_ERROR.",
+	  why: "Learning applied: the second fix targets the Sleuth\u2019s other signature with a low-risk remedy. Every proposal now stands on evidence." },
+	{ who: "comms", ts: "T+61.6s", cls: "card", text: "\ud83d\udce3 STATUS UPDATE (customer-facing):\nWe\u2019re aware of slower checkouts following tonight\u2019s orders-api update. Latency spiked to 4.2s and about 7.8% of requests failed. We are rolling back and resizing database connections. Sorry for the disruption \u2014 we\u2019re on it.\nNEXT STEPS \u2014 DBA: resize pool \u00b7 DevOps: canary rollback \u00b7 SRE: monitor 30min.",
+	  why: "Because Comms watched the whole conversation, it writes a customer update with the incident\u2019s real numbers and named owners \u2014 assembled from shared context, never briefed." },
+	{ who: "scribe", soft: true, text: "\ud83d\uddc2\ufe0f timeline written \u2192 incident-timeline.md \u00b7 2 signatures \u00b7 3 findings \u00b7 1 hold \u00b7 clean exit",
+	  why: "The scribe files everything as history \u2014 your postmortem writes itself. Six teammates, zero managers, one shared channel. That\u2019s OpsRoom." }
 ];
 
-/* ---------- render ---------- */
-const $ = (id) => document.getElementById(id);
-let idx = 0, timer = null;
+const chat = document.getElementById("chat");
+const cap = document.getElementById("cap");
+const bar = document.getElementById("bar");
+const stepEl = document.getElementById("step");
+const playBtn = document.getElementById("play");
+const speedSel = document.getElementById("speed");
+let idx = 0;
+let timer = null;
 
-// room map chips (bottom strip)
-const mapEls = {};
-for (const id of WHO_ALL) {
-	const c = document.createElement("span");
-	c.className = "mapchip";
-	c.textContent = `${AGENTS[id].icon} ${AGENTS[id].name}`;
-	$("roommap").appendChild(c);
-	mapEls[id] = c;
-}
-
-function show(i) {
-	idx = Math.max(0, Math.min(STEPS.length - 1, i));
-	const s = STEPS[idx];
-
-	$("chapter").textContent = s.ch ?? $("chapter").textContent;
-	$("stepno").textContent = `beat ${idx + 1} / ${STEPS.length}`;
-
-	const whorow = $("whorow");
-	whorow.textContent = "";
-	if (s.who === "narrator") {
-		const a = document.createElement("div"); a.className = "avatar"; a.textContent = "🎬";
-		const t = document.createElement("div");
-		const b = document.createElement("div"); b.className = "agent-name"; b.textContent = "Narrator";
-		const r = document.createElement("div"); r.className = "agent-role"; r.textContent = "setting the scene";
-		t.appendChild(b); t.appendChild(r);
-		whorow.appendChild(a); whorow.appendChild(t);
-	} else {
-		const ag = AGENTS[s.who];
-		const a = document.createElement("div"); a.className = "avatar"; a.textContent = ag.icon;
-		const t = document.createElement("div");
-		const b = document.createElement("div"); b.className = "agent-name"; b.textContent = ag.name;
-		const r = document.createElement("div"); r.className = "agent-role"; r.textContent = ag.role;
-		t.appendChild(b); t.appendChild(r);
-		whorow.appendChild(a); whorow.appendChild(t);
-	}
-
-	const msg = $("msg");
-	msg.textContent = s.msg;
-	msg.className = "msg tone-" + (s.tone ?? "info");
-
-	$("why").textContent = "Why it matters: " + s.why;
-
-	for (const id of WHO_ALL) {
-		mapEls[id].className = "mapchip" + (s.on.includes(id) ? " on" : "") +
-			(s.on.includes(id) && (id === "commander") ? " warn" : "");
-	}
-
-	$("bar").style.width = ((idx) / (STEPS.length - 1) * 100) + "%";
-	$("prev").disabled = idx === 0;
-	$("next").textContent = idx === STEPS.length - 1 ? "Replay ↺" : "Next ▶";
-}
-
-function stopAuto() {
-	if (timer) { clearInterval(timer); timer = null; $("play").textContent = "▶ Auto-play"; }
-}
-function next() { if (idx >= STEPS.length - 1) { stopAuto(); show(0); return; } show(idx + 1); }
-
-$("next").addEventListener("click", () => { stopAuto(); next(); });
-$("prev").addEventListener("click", () => { stopAuto(); show(idx - 1); });
-$("play").addEventListener("click", () => {
-	if (timer) { stopAuto(); return; }
-	$("play").textContent = "⏸ Pause (3s/beat)";
-	timer = setInterval(next, 3000);
-});
-document.addEventListener("keydown", (e) => {
-	if (e.key === "ArrowRight") { stopAuto(); next(); }
-	else if (e.key === "ArrowLeft") { stopAuto(); show(idx - 1); }
-	else if (e.key === " ") { e.preventDefault(); if (timer) stopAuto(); else $("play").click(); }
+// sidebar
+// Sidebar chips: interpolated fields come only from the hardcoded AGENTS
+// table above (icons/names/roles authored in this file) — no user input
+// exists on this offline page, so HTML assembly here is safe.
+const agWrap = document.getElementById("agents");
+Object.entries(AGENTS).forEach(([id, a]) => {
+	const d = document.createElement("div");
+	d.className = "agent";
+	d.id = "ag-" + id;
+	d.innerHTML = '<span class="av">' + a.icon + '</span><span><span class="nm">' +
+		a.name + "</span><br><span class=\u0022rl\u0022>" + a.role + "</span></span><span class='dot'></span>";
+	agWrap.appendChild(d);
 });
 
-show(0);
+function bubbleHTML(m) {
+	const a = AGENTS[m.who];
+	const cls = ["row", m.cls || "", m.soft ? "soft" : ""].filter(Boolean).join(" ");
+	return '<div class="' + cls + '"><div class="av">' + a.icon + "</div>" +
+		'<div class="bubble"><div class="meta"><span class="nm" style="color:' + a.color + '">' + a.name +
+		"</span>" + (m.ts ? '<span class="ts">' + m.ts + "</span>" : "") +
+		'</div><div class="body"></div></div></div>';
+}
+
+// Message rows: same safety case — bubbleHTML interpolates only hardcoded
+// AGENTS/MSGS constants; the free-text body is set via textContent below,
+// so even if a message contained HTML it would render inert.
+function render() {
+	chat.innerHTML = "";
+	for (let i = 0; i < idx; i++) {
+		chat.insertAdjacentHTML("beforeend", bubbleHTML(MSGS[i]));
+		const bodies = chat.querySelectorAll(".body");
+		bodies[bodies.length - 1].textContent = MSGS[i].text;
+	}
+	const cur = MSGS[idx - 1];
+	cap.textContent = cur ? cur.why : "Press Play \u2014 each message comes with a plain-language explanation.";
+	Object.keys(AGENTS).forEach((id) => document.getElementById("ag-" + id).classList.toggle("active", !!cur && cur.who === id));
+	bar.style.width = Math.round((idx / MSGS.length) * 100) + "%";
+	stepEl.textContent = idx + " / " + MSGS.length;
+	chat.scrollTop = chat.scrollHeight;
+}
+
+function step() {
+	if (idx >= MSGS.length) return stop();
+	idx++;
+	render();
+	if (idx >= MSGS.length) stop();
+}
+
+function play() {
+	if (timer) return stop();
+	playBtn.textContent = "\u23f8 Pause";
+	timer = setInterval(step, Number(speedSel.value));
+	step();
+}
+
+function stop() {
+	clearInterval(timer);
+	timer = null;
+	playBtn.textContent = idx >= MSGS.length ? "\u21ba Replay" : "\u25b6 Play";
+}
+
+playBtn.addEventListener("click", () => {
+	if (!timer && idx >= MSGS.length) idx = 0;
+	timer ? stop() : play();
+});
+document.getElementById("next").addEventListener("click", () => { stop(); step(); });
+document.getElementById("prev").addEventListener("click", () => { stop(); idx = Math.max(0, idx - 1); render(); });
+speedSel.addEventListener("change", () => { if (timer) { clearInterval(timer); timer = setInterval(step, Number(speedSel.value)); } });
+
+render();
 </script>
 </body>
 </html>
