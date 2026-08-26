@@ -34,13 +34,6 @@ function searchFixture(file: string, pattern: string): string {
 		: `${hits.length} match(es) for "${pattern}" in ${file}:\n${hits.join("\n")}`
 }
 
-/** Path-safe reader + terse summary used for the guaranteed publication. */
-function summarize(file: string): string | null {
-	const out = searchFixture(file, "_ERROR")
-	const first = out.split("\n")[1]
-	return first ? `[sleuth] error signature: ${first.trim()}` : null
-}
-
 export const sleuthTools: Tool[] = [
 	{
 		type: "function",
@@ -84,12 +77,24 @@ export class LogSleuth extends BaseParticipant {
 		this.seenEvents.add(message)
 
 		// GUARANTEED PATH: grep fixtures directly — instant, offline, no model.
-		for (const line of [summarize("orders-api.log"), summarize("checkout.log")]) {
-			if (!line) continue
-			const key = /\b(\w+_ERROR)\b/.exec(line)?.[1]
+		// A missing/empty fixture is announced on the bus, never silent:
+		// .gitignore (*.log) once swallowed these files and every clone's
+		// sleuth starved invisibly — real-Mac lesson from the Sept 5 prep.
+		for (const file of ["orders-api.log", "checkout.log"]) {
+			const out = searchFixture(file, "_ERROR")
+			const first = out.split("\n")[1]
+			if (!first) {
+				const key = `missing:${file}`
+				if (!this.publishedSignatures.has(key)) {
+					this.publishedSignatures.add(key)
+					sendMessage(this.environment, `[sleuth] WARNING: no evidence available in ${file} (fixture missing or empty)`, this)
+				}
+				continue
+			}
+			const key = /\b(\w+_ERROR)\b/.exec(first)?.[1]
 			if (!key || this.publishedSignatures.has(key)) continue
 			this.publishedSignatures.add(key)
-			sendMessage(this.environment, line, this)
+			sendMessage(this.environment, `[sleuth] error signature: ${first.trim()}`, this)
 		}
 
 		// BONUS PATH (LLM mode): let the model earn its own confirmation via

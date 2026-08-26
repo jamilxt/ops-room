@@ -19,7 +19,7 @@ export class IncidentScribe extends BaseParticipant {
 		// Every bus message carries its own identity tag ([triage], [sleuth],
 		// [commander], ...) — prefer it over reflective class names.
 		const who = message.match(/^\[(\w+)\]/)?.[1] ?? source?.constructor?.name ?? "unknown"
-		if (who === "sleuth") this.onSig?.()
+		if (who === "sleuth" && message.includes("error signature")) this.onSig?.()
 		const elapsed = ((Date.now() - this.startedAt) / 1000).toFixed(1)
 		const line = `T+${elapsed}s ${who === "unknown" ? "" : `[${who}] `}${message.replace(/^\[\w+\]\s*/, "")}`
 		console.log(line)

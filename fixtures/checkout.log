@@ -1,0 +1,7 @@
+2026-09-05T14:00:24.104Z orders-api/src/main/ts/handler.ts:41 CheckoutLockError CHECKOUT_LOCK_ERROR lock contention on cart rows, lock held 3.1s
+2026-09-05T14:00:25.009Z orders-api/src/main/ts/handler.ts:41 CheckoutLockError LOCK_ACQUIRE_FAIL retry 1/3 cart:998
+2026-09-05T14:00:25.102Z orders-api/src/main/ts/handler.ts:41 CheckoutLockError CHECKOUT_LOCK_ERROR lock contention on cart rows, lock held 2.7s
+2026-09-05T14:00:26.335Z orders-api/src/main/ts/handler.ts:41 CheckoutLockError LOCK_ACQUIRE_FAIL retry 2/3 cart:1003
+2026-09-05T14:00:27.506Z orders-api/src/main/ts/handler.ts:41 CheckoutLockError CHECKOUT_LOCK_ERROR lock contention on cart rows, lock held 4.0s
+2026-09-05T14:00:29.120Z orders-api/src/main/ts/handler.ts:41 CheckoutLockError CHECKOUT_LOCK_ERROR lock contention on cart rows, lock held 5.5s
+2026-09-05T14:01:02.888Z orders-api/src/main/ts/handler.ts:41 CheckoutLockError CHECKOUT_LOCK_ERROR first occurrence right after canary window opened

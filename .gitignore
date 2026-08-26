@@ -2,4 +2,6 @@ node_modules/
 dist/
 .env
 *.log
+# Fixture inputs for the sleuth's search_logs tool are shipped data, not junk:
+!fixtures/*.log
 incident-timeline.md
