@@ -83,8 +83,20 @@ src/
   index.ts            # scenario wiring: who joins the environment
   incident-feed.ts    # deterministic telemetry participant
   triage-agent.ts     # alert/metric specialist (PROPOSAL/REVISED PROPOSAL)
-  log-sleuth.ts       # log-line specialist (parallel)
-  risk-commander.ts   # evidence-citing interception agent
+  log-sleuth.ts       # log analyst — the tool user (search_logs via Mozaik function-calling)
+  risk-commander.ts   # evidence-citing interception agent (HOLD → ESCALATION)
   comms-agent.ts      # status-update synthesizer (end of incident)
+  oncall-engineer.ts  # HUMAN participant: approves/rejects escalations
   incident-scribe.ts  # observer → live timeline artifact
+fixtures/
+  orders-api.log      # what search_logs actually greps
+  checkout.log
+scripts/
+  test-oncall.ts      # escalation smoke test (both decision branches)
 ```
+
+## Design notes
+
+- **Streaming is off by default.** Not an omission: Mozaik 3.14's SSE delivery drops semantic events end-to-end (reproduced and documented). OpsRoom uses single-shot inference; nothing in the demo needs token streaming.
+- **Interception is a contract, not vibes.** Agents speak `PROPOSAL:` / `REVISED PROPOSAL:` tokens so the commander's grounding gate fires deterministically even when the LLM paraphrases.
+- **A human has the last word.** When a revised proposal still cites no evidence, the commander ESCALATES and the on-call engineer (you, at a keyboard) decides.
