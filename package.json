@@ -5,6 +5,8 @@
 	"type": "module",
 	"scripts": {
 		"start": "tsx src/index.ts",
+		"demo:local": "node scripts/demo-local.mjs",
+		"mock:llm": "node scripts/mock-openai.mjs 8787",
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {

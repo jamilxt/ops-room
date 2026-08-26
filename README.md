@@ -30,10 +30,10 @@ ollama serve & ollama pull qwen2.5:7b
 #    LM Studio: start the server (Developer tab → Start Server), load a model
 #    llama.cpp: llama-server -m model.gguf --port 1234
 
-# 2. Point OpsRoom at it:
-export OPENAI_API_KEY=ollama           # any non-empty string
-export OPENAI_BASE_URL=http://127.0.0.1:11434/v1
-npm start
+# 2. Run the one-command demo (checks the server, wires env, runs scenario):
+npm run demo:local
+#    For LM Studio / llama.cpp on a custom port:
+LLM_BASE_URL=http://127.0.0.1:1234/v1 npm run demo:local
 ```
 
 > The model name sent to the server is `deepseek-v4-flash` (one of Mozaik's 12 registry names). Most local servers ignore unknown model names and serve their loaded model; if yours is strict (LM Studio with a specific model loaded), alias the name in the server, or set `LLM_MODEL` to a registry name and map it server-side. For LM Studio, simplest: load `qwen2.5-coder-7b-instruct` and it will serve it for any requested model.
