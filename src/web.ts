@@ -233,7 +233,7 @@ fetch("/agents").then(r=>r.json()).then((list)=>{
  for(const a of list){
   if(a.group!==group){group=a.group;html+='<div class="navlabel">'+esc(group)+"</div>"}
   const i=AGENTS[a.id]||AGENTS.system
-  html+='<div class="agent" id="ag-'+a.id+'" data-id="'+a.id+'"><span class="dot"></span><span class="em">'+i[0]+'</span><span style="min-width:0"><span class="nm">'+esc(a.name)+"</span><span class='rl'>"+esc(a.role)+"</span></span><span class='ct'>0</span></div>"}
+  html+='<div class="agent" id="ag-'+a.id+'" data-id="'+a.id+'" title="messages sent by '+esc(a.name)+' — click to solo their messages, click again to show all"><span class="dot"></span><span class="em">'+i[0]+'</span><span style="min-width:0"><span class="nm">'+esc(a.name)+"</span><span class='rl'>"+esc(a.role)+"</span></span><span class='ct'>0</span></div>"}
  nav.innerHTML=html
  for(const el2 of nav.querySelectorAll(".agent"))el2.onclick=()=>{
   const id=el2.getAttribute("data-id")
