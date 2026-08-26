@@ -14,7 +14,7 @@ A live incident ops room where multiple agents run **truly concurrently** — no
 
 - **IncidentFeed** — replays a scripted production incident (deploy → alerts → logs → metrics) onto the shared `AgenticEnvironment`, exactly like real telemetry would
 - **TriageAgent** — reacts to alerts/metrics, forms hypotheses; **consumes the sleuth's evidence** before re-inferring; obeys commander HOLDs with a `REVISED PROPOSAL`
-- **LogSleuth** — works *in parallel* on raw log lines, extracts error signatures; never waits for triage
+- **LogSleuth** — works *in parallel* on raw log lines, extracts error signatures; never waits for triage. The only agent that **uses a real Mozaik tool**: its `search_logs` function tool greps actual fixture logs via the framework's function-calling loop, so every signature it publishes is earned from files, not guessed
 - **RiskCommander** — intercepts mitigation proposals mid-room and challenges them with an evidence-citing HOLD, unprompted — emergent coordination, not a pipeline step
 - **CommsAgent** — silently watches the whole room, then at incident end drafts the customer-facing status update (LLM mode: real synthesis from the full transcript)
 - **IncidentScribe** — pure observer; writes a live `incident-timeline.md` of everything that crossed the environment

@@ -46,9 +46,14 @@ const environment = new AgenticEnvironment()
 
 const feed = new IncidentFeed(environment, timeline)
 const triage = new TriageAgent(environment, llm)
-const sleuth = new LogSleuth(environment)
+const sleuth = new LogSleuth(environment, llm)
+// Signatures tracked by counting bus rows tagged [sleuth] (works for both
+// engines since every publication carries the tag).
+const sigCounter = { count: 0 }
 const commander = new RiskCommander(environment)
-const scribe = new IncidentScribe()
+const scribe = new IncidentScribe(() => {
+	sigCounter.count++
+})
 const comms = new CommsAgent(environment, llm)
 
 feed.join(environment)
@@ -75,7 +80,7 @@ setTimeout(() => {
 			clearInterval(poll)
 			scribe.writeReport("incident-timeline.md")
 			console.log(
-				`\n[summary] sleuth signatures: ${sleuth.signatures.length}, triage findings: ${triage.findings.length}, commander challenges: ${commander.challenges.length}`,
+				`\n[summary] sleuth signatures: ${sigCounter.count}, triage findings: ${triage.findings.length}, commander challenges: ${commander.challenges.length}`,
 			)
 			process.exit(0)
 		}
