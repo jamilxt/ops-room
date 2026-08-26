@@ -1,0 +1,39 @@
+import { AgenticEnvironment, BaseParticipant, sendMessage } from "@mozaik-ai/core"
+import { createInterface } from "node:readline"
+
+/**
+ * OnCallEngineer — the HUMAN in the room (framework "human participant"
+ * pattern). When a revised proposal STILL fails evidence-grounding, the
+ * RiskCommander escalates and a person makes the final call:
+ *   - OPSROOM_ONCALL=interactive → the script pauses and asks on stdin.
+ *   - default → auto-decision so demos/CI never hang.
+ */
+export class OnCallEngineer extends BaseParticipant {
+	constructor(
+		private readonly environment: AgenticEnvironment,
+		private readonly interactive: boolean,
+	) {
+		super()
+	}
+
+	async onMessage(message: string): Promise<void> {
+		if (!message.includes("[commander]") || !message.includes("ESCALATION")) return
+
+		if (!this.interactive) {
+			sendMessage(this.environment, "[oncall] auto-review: proceeding with the revised proposal under extra monitoring", this)
+			return
+		}
+
+		const rl = createInterface({ input: process.stdin, output: process.stdout })
+		const answer = await new Promise<string>((resolve) =>
+			rl.question(`\n⏸  ON-CALL (you): the room escalated an ungrounded plan.\n   ${message.slice(0, 160)}\n   Do you APPROVE proceeding? [y/N] `, resolve),
+		)
+		rl.close()
+		const approved = answer.trim().toLowerCase().startsWith("y")
+		sendMessage(
+			this.environment,
+			`[oncall] human decision: ${approved ? "APPROVED — proceed with monitoring" : "REJECTED — containment measures only"}`,
+			this,
+		)
+	}
+}

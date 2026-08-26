@@ -6,6 +6,7 @@ import { LogSleuth } from "./log-sleuth"
 import { RiskCommander } from "./risk-commander"
 import { IncidentScribe } from "./incident-scribe"
 import { CommsAgent } from "./comms-agent"
+import { OnCallEngineer } from "./oncall-engineer"
 
 const llm = Boolean(process.env.OPENAI_API_KEY)
 
@@ -55,6 +56,9 @@ const scribe = new IncidentScribe(() => {
 	sigCounter.count++
 })
 const comms = new CommsAgent(environment, llm)
+// Human participant: escalations pause for a real y/N answer only when
+// OPSROOM_ONCALL=interactive; every other mode auto-decides (CI-safe).
+const oncall = new OnCallEngineer(environment, process.env.OPSROOM_ONCALL === "interactive")
 
 feed.join(environment)
 triage.join(environment)
@@ -62,6 +66,7 @@ sleuth.join(environment)
 commander.join(environment)
 scribe.join(environment)
 comms.join(environment)
+oncall.join(environment)
 
 console.log(`=== OpsRoom — concurrent incident response${llm ? " (LLM mode)" : " (deterministic demo)"} ===\n`)
 

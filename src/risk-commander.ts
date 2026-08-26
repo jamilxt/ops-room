@@ -73,7 +73,14 @@ export class RiskCommander extends BaseParticipant {
 
 		this.lastChallenged = message
 
-		const challenge = `HOLD — that proposal ${reason}. Confirmed evidence so far: ${this.signaturesSeen.join(", ") || "none yet"}. ${isRevision ? "Escalate to the risk review queue instead." : "Revise it against the confirmed signatures — PROPOSAL must cite at least one (REVISED PROPOSAL:)."}`
+		// A failed REVISION is the room's second strike: escalate to the human
+		// on-call instead of looping on another HOLD (framework human-participant
+		// pattern — automation asks, a person decides).
+		const kind = isRevision ? "ESCALATION" : "HOLD"
+		const guidance = isRevision
+			? "This was already a revision — escalating to the on-call engineer for a human decision."
+			: "Revise it against the confirmed signatures — PROPOSAL must cite at least one (REVISED PROPOSAL:)."
+		const challenge = `${kind} — that proposal ${reason}. Confirmed evidence so far: ${this.signaturesSeen.join(", ") || "none yet"}. ${guidance}`
 		this.challenges.push(message)
 		console.log(`  [commander] ⚠ challenging: ${message.slice(0, 60)}…`)
 		sendMessage(this.environment, `[commander] ${challenge}`, this)
