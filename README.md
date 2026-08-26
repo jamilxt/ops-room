@@ -4,6 +4,8 @@ Concurrent AI agents that fight a production incident together — built for the
 
 **[Architecture diagram →](docs/architecture.html)** — six participants around one shared message bus; open in any browser.
 
+**[Demo video script →](docs/demo-video-script.md)** — shot-by-shot 2-minute recording plan.
+
 ## What it is
 
 A live incident ops room where multiple agents run **truly concurrently** — no pipeline, no orchestrator:
