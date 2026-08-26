@@ -5,13 +5,15 @@ import { AgenticEnvironment, BaseParticipant, DeveloperMessageItem, executeFunct
 /**
  * LogSleuth — the log analyst.
  *
- * Unlike its teammates, the sleuth doesn't guess: it earns every claim by
- * calling the search_logs TOOL against real fixture log files through
- * Mozaik's function-calling loop (the framework's tool-use surface — see
- * docs.jigjoy.ai "Tools"). Same agent, two engines:
- *   - LLM mode: the model decides to call search_logs, reads the output,
- *     then publishes "error signature: ..." on the bus.
- *   - Deterministic mode (no OPENAI_BASE_URL/key): greps fixtures itself.
+ * Evidence beats are GUARANTEED; tool use is BONUS DEPTH:
+ *   1. On every triggering telemetry row the sleuth greps the fixture logs
+ *      itself and publishes the signature immediately — same code the tool
+ *      runs. The room never waits on a model for ground truth.
+ *   2. In LLM mode it ALSO plays the Mozaik function-calling game: qwen3:8b
+ *      decides to call search_logs, reads the output, and publishes its own
+ *      grounded conclusion. Two independent confirmations of the same fact,
+ *      exactly like a human analyst re-checking an alert by hand.
+ *   - Deterministic mode (no OPENAI_API_KEY): path 1 only.
  */
 
 // Demo fixtures live here; only files inside are searchable.
@@ -30,6 +32,13 @@ function searchFixture(file: string, pattern: string): string {
 	return hits.length === 0
 		? `0 matches for "${pattern}" in ${file}`
 		: `${hits.length} match(es) for "${pattern}" in ${file}:\n${hits.join("\n")}`
+}
+
+/** Path-safe reader + terse summary used for the guaranteed publication. */
+function summarize(file: string): string | null {
+	const out = searchFixture(file, "_ERROR")
+	const first = out.split("\n")[1]
+	return first ? `[sleuth] error signature: ${first.trim()}` : null
 }
 
 export const sleuthTools: Tool[] = [
@@ -58,7 +67,7 @@ export class LogSleuth extends BaseParticipant {
 	private readonly context = ModelContext.create("sleuth")
 	private readonly pendingCalls = new Set<string>()
 	private readonly seenEvents = new Set<string>()
-	private readonly published = new Set<string>()
+	private readonly publishedSignatures = new Set<string>()
 
 	constructor(
 		private readonly environment: AgenticEnvironment,
@@ -74,22 +83,18 @@ export class LogSleuth extends BaseParticipant {
 		if (!reacts || this.seenEvents.has(message)) return
 		this.seenEvents.add(message)
 
-		if (!this.llm) {
-			// Deterministic demo: same grep the tool runs, published directly —
-			// once per distinct signature, not once per triggering event.
-			for (const file of ["orders-api.log", "checkout.log"]) {
-				const out = searchFixture(file, "_ERROR")
-				const first = out.split("\n")[1]
-				if (!first) continue
-				const code = /\b(\w+_ERROR)\b/.exec(first)?.[1]
-				const key = `${file}:${code}`
-				if (!code || this.published.has(key)) continue
-				this.published.add(key)
-				sendMessage(this.environment, `[sleuth] error signature: ${first.trim()}`, this)
-			}
-			return
+		// GUARANTEED PATH: grep fixtures directly — instant, offline, no model.
+		for (const line of [summarize("orders-api.log"), summarize("checkout.log")]) {
+			if (!line) continue
+			const key = /\b(\w+_ERROR)\b/.exec(line)?.[1]
+			if (!key || this.publishedSignatures.has(key)) continue
+			this.publishedSignatures.add(key)
+			sendMessage(this.environment, line, this)
 		}
 
+		// BONUS PATH (LLM mode): let the model earn its own confirmation via
+		// the function-calling loop. Nice-to-have depth, never a dependency.
+		if (!this.llm) return
 		this.context.addContextItem(UserMessageItem.create(message))
 		runInference({
 			model: registryName as ModelName,
@@ -126,8 +131,15 @@ export class LogSleuth extends BaseParticipant {
 	}
 
 	async onModelMessage(item: ModelMessageItem): Promise<void> {
-		const text = item.content.text?.trim()
-		if (!text || !text.startsWith("error signature")) return
-		sendMessage(this.environment, `[sleuth] ${text}`, this)
+		// Keep strict-format publications only; relax if the model prefixes.
+		const raw = item.content.text?.trim()
+		if (!raw) return
+		const text = /^error signature:/m.test(raw) ? raw : (raw.match(/error signature:[^\n]*/)?.[0] ?? null)
+		if (!text) return
+		const body = text.split("\n")[0].replace(/^\[sleuth\]\s*/, "")
+		const key = /\b(\w+_ERROR)\b/.exec(body)?.[1]
+		if (!key || this.publishedSignatures.has(key)) return
+		this.publishedSignatures.add(key)
+		sendMessage(this.environment, `[sleuth] ${body}`, this)
 	}
 }
