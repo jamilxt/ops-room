@@ -23,12 +23,15 @@ export class RiskCommander extends BaseParticipant {
 		if (!message.startsWith("[triage]") && !message.startsWith("[sleuth]")) return
 
 		// Risky only when unqualified — "staged/canary rollback" is the SAFE path.
-		// Any pod/instance restart carries blast radius regardless of phrasing
-		// ("restart all pods", "restart affected pods", "rolling restart"…).
-		const risky =
-			/(restart|reboot)\b.{0,40}\b(pod|instance|service|node)|restart all|rollback|drop (the )?cache|delete data|migrate all/i.test(
-				message,
-			) && !/staged|canary|gradual/i.test(message)
+		// Stem-matched so verb forms ("restarting", "rebooted") also trigger;
+		// the pod/instance/service/node noun must appear somewhere nearby-ish
+		// to tie the action to infra. LLM phrasings vary wildly every run.
+		const impliesRestart = /restart|reboot/i.test(message)
+		const touchesInfra = /\b(pod|instance|service|node)s?\b/i.test(message)
+		const blanketRisk =
+			/restart all|roll\s?back|drop (the )?cache|delete data|migrate all/i.test(message)
+		const safePath = /staged|canary|gradual/i.test(message)
+		const risky = !safePath && ((impliesRestart && touchesInfra) || blanketRisk)
 		if (!risky) return
 
 		const challenge = `HOLD — that recommendation has blast radius. Impact vs the ${this.signaturesSeen()} signature we already have: propose the lowest-risk mitigation first`
