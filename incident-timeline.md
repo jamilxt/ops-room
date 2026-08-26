@@ -2,14 +2,16 @@
 
 - `T+0.5s [unknown] [deploy] deploy: orders-api v2.14.3 rolled out to 3/10 instances (canary)`
 - `T+3.0s [unknown] [alert] alert: checkout p95 latency 4.2s (baseline 210ms), firing for 2m`
-- `T+3.1s [unknown] [triage] FakeOllama(deepseek-v4-flash): canary rollback first, pool exhaustion confirmed`
+- `T+3.9s [unknown] [triage] hypothesis: checkout latency correlates with the deploy; suspect connection-pool exhaustion in orders-api`
 - `T+5.0s [unknown] [sleuth] error signature: TIMEOUT_ERROR in orders-api/src/main/ts/pool.ts — first seen right after deploy window opened`
 - `T+5.0s [unknown] [log] log: orders-api/src/main/ts/pool.ts:88 PoolTimeoutError TIMEOUT_ERROR acquiring connection (x1,204 in 60s)`
 - `T+9.0s [unknown] [metric] metric: orders-api db connection pool utilization 100%, queue depth 312`
-- `T+9.0s [unknown] [triage] FakeOllama(deepseek-v4-flash): canary rollback first, pool exhaustion confirmed`
+- `T+9.9s [unknown] [triage] hypothesis: partial degradation, likely a bad instance behind the load balancer`
 - `T+14.0s [unknown] [sleuth] error signature: CHECKOUT_LOCK_ERROR in orders-api/src/main/ts/handler.ts — first seen right after deploy window opened`
 - `T+14.0s [unknown] [log] log: orders-api/src/main/ts/handler.ts:41 CHECKOUT_LOCK_ERROR lock contention on cart rows (x87)`
 - `T+20.0s [unknown] [alert] alert: checkout error rate 7.8% — page the on-call, recommend whether to restart all pods`
-- `T+20.0s [unknown] [triage] FakeOllama(deepseek-v4-flash): canary rollback first, pool exhaustion confirmed`
+- `T+20.9s [unknown] [triage] REVISED PROPOSAL: roll back the 3 canary instances only; all-pods restart is off the table`
+- `T+20.9s [unknown] [commander] HOLD — that proposal does not reference any confirmed signature (TIMEOUT_ERROR, CHECKOUT_LOCK_ERROR). Confirmed evidence so far: TIMEOUT_ERROR, CHECKOUT_LOCK_ERROR. Revise it against the confirmed signatures — PROPOSAL must cite at least one (REVISED PROPOSAL:).`
+- `T+20.9s [unknown] [triage] PROPOSAL: restart ALL orders-api pods immediately to clear the stuck connection pool`
 - `T+21.5s [unknown] [feed] timeline exhausted — incident is yours, team`
-- `T+28.0s [unknown] [comms] FakeOllama(deepseek-v4-flash): canary rollback first, pool exhaustion confirmed`
+- `T+28.0s [unknown] [comms] STATUS UPDATE (deterministic): We identified degraded checkout performance following a canary deploy to orders-api. Two error signatures were confirmed by automated log analysis. A mitigation review is underway under risk supervision. Services remain partially degraded while we roll out the safest fix first.`

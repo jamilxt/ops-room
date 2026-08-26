@@ -12,6 +12,7 @@ import { AgenticEnvironment, BaseParticipant, DeveloperMessageItem, ModelContext
  */
 export class CommsAgent extends BaseParticipant {
 	readonly draft: string[] = []
+	published = false
 	private readonly context = ModelContext.create("comms")
 
 	constructor(
@@ -44,6 +45,7 @@ Be factual. Use only facts from the transcript you were given.`,
 	finish(): void {
 		if (!this.llm) {
 			const sigs = this.draft.filter((m) => m.startsWith("[sleuth]")).length
+			this.published = true
 			sendMessage(this.environment, "[comms] STATUS UPDATE (deterministic): We identified degraded checkout performance following a canary deploy to orders-api. Two error signatures were confirmed by automated log analysis. A mitigation review is underway under risk supervision. Services remain partially degraded while we roll out the safest fix first.", this)
 			console.log(`  [comms] deterministic status update published (${sigs} signatures observed)`)
 			return
@@ -62,6 +64,7 @@ Be factual. Use only facts from the transcript you were given.`,
 	async onModelMessage(item: ModelMessageItem): Promise<void> {
 		const text = item.content.text?.trim()
 		if (!text) return
+		this.published = true
 		sendMessage(this.environment, `[comms] ${text}`, this)
 		console.log(`  [comms] draft ready (${text.length} chars)`)
 	}

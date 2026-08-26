@@ -62,17 +62,22 @@ console.log(`=== OpsRoom — concurrent incident response${llm ? " (LLM mode)" :
 
 feed.replay()
 
-// Scenario length: sum of delays + tail; then write the artifact and exit.
+// Scenario length: sum of delays + tail; then comms synthesis → report → exit.
 const totalMs = timeline.reduce((acc, e) => acc + e.delayMs, 0) + 8000
 setTimeout(() => {
 	// Comms runs before the report: its status update belongs on the bus and
-	// in the timeline artifact the scribe writes.
+	// in the timeline artifact the scribe writes. Local LLMs can take >12s to
+	// synthesize, so poll for publication instead of a blind sleep.
 	comms.finish()
-	setTimeout(() => {
-		scribe.writeReport("incident-timeline.md")
-		console.log(
-			`\n[summary] sleuth signatures: ${sleuth.signatures.length}, triage findings: ${triage.findings.length}, commander challenges: ${commander.challenges.length}`,
-		)
-		process.exit(0)
-	}, llm ? 12000 : 500) // generous window for the final local-LLM synthesis
+	const deadline = Date.now() + 60_000
+	const poll = setInterval(() => {
+		if (comms.published || Date.now() > deadline) {
+			clearInterval(poll)
+			scribe.writeReport("incident-timeline.md")
+			console.log(
+				`\n[summary] sleuth signatures: ${sleuth.signatures.length}, triage findings: ${triage.findings.length}, commander challenges: ${commander.challenges.length}`,
+			)
+			process.exit(0)
+		}
+	}, 500)
 }, totalMs)

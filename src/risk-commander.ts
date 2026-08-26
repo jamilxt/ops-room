@@ -16,6 +16,7 @@ import { LogSleuth } from "./log-sleuth"
  */
 export class RiskCommander extends BaseParticipant {
 	readonly challenges: string[] = []
+	private readonly signaturesSeen: string[] = []
 	private latestSignature: string | null = null
 	private lastChallenged: string | null = null
 
@@ -29,6 +30,8 @@ export class RiskCommander extends BaseParticipant {
 		// We also receive feed messages; ignore everything except agent advice.
 		if (message.startsWith("[sleuth]")) {
 			this.latestSignature = message
+			const code = message.match(/[A-Z0-9_]{4,}ERROR[A-Z0-9_]*/)?.[0]
+			if (code && !this.signaturesSeen.includes(code)) this.signaturesSeen.push(code)
 			return
 		}
 		if (!message.startsWith("[triage]")) return
@@ -37,28 +40,40 @@ export class RiskCommander extends BaseParticipant {
 		// (protects against renegotiation ping-pong).
 		if (message === this.lastChallenged) return
 
-		// 1. Contract path: anchored tokens. A first proposal ("PROPOSAL:") is
-		//    intercepted once; a "REVISED PROPOSAL:" resolves the negotiation.
-		const isProposal = message.startsWith("[triage] PROPOSAL:")
-		const isRevision = message.startsWith("[triage] REVISED PROPOSAL:")
-		let risky = isProposal
+		// Contract tokens: strip the routing prefix first, then match at string
+		// start or after a newline — covers both single-line replies and
+		// multi-part answers like "ROOT CAUSE: ...\nPROPOSAL: ...".
+		const body = message.replace(/^\[triage\]\s*/, "")
+		const isRevision = /(^|\n)REVISED PROPOSAL:/.test(body)
+		const isProposal = !isRevision && /(^|\n)PROPOSAL:/.test(body)
 
-		// 2. Safety net: prose heuristics for un-tokenized phrasings.
+		let risky = false
+		let reason = ""
+		if (isProposal) {
+			// Evidence-grounding gate: a mitigation proposal must reference at
+			// least one confirmed signature. Safe-sounding but ungrounded plans
+			// get challenged too — grounding is what makes them trustworthy.
+			const grounded = this.signaturesSeen.some((sig) => message.includes(sig))
+			if (!grounded) {
+				risky = true
+				reason = `does not reference any confirmed signature (${this.signaturesSeen.join(", ") || "none yet"})`
+			}
+		}
 		if (!risky && !isRevision) {
-			// Stem-matched so verb forms ("restarting", "rebooted") also trigger;
-			// the pod/instance/service/node noun ties the action to infra.
+			// Safety net: prose heuristics for un-tokenized phrasings.
 			const impliesRestart = /restart|reboot/i.test(message)
 			const touchesInfra = /\b(pod|instance|service|node)s?\b/i.test(message)
 			const blanketRisk =
 				/restart all|roll\s?back|drop (the )?cache|delete data|migrate all/i.test(message)
 			const safePath = /staged|canary|gradual/i.test(message)
 			risky = !safePath && ((impliesRestart && touchesInfra) || blanketRisk)
+			if (risky) reason = "blast-radius action without prior sign-off"
 		}
 		if (!risky) return
 
 		this.lastChallenged = message
 
-		const challenge = `HOLD — that recommendation has blast radius. Weigh it against the room's evidence (${this.latestSignature ?? "no signature yet"}) and propose the lowest-risk mitigation first`
+		const challenge = `HOLD — that proposal ${reason}. Confirmed evidence so far: ${this.signaturesSeen.join(", ") || "none yet"}. ${isRevision ? "Escalate to the risk review queue instead." : "Revise it against the confirmed signatures — PROPOSAL must cite at least one (REVISED PROPOSAL:)."}`
 		this.challenges.push(message)
 		console.log(`  [commander] ⚠ challenging: ${message.slice(0, 60)}…`)
 		sendMessage(this.environment, `[commander] ${challenge}`, this)
