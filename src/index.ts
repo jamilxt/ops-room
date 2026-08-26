@@ -5,6 +5,7 @@ import { TriageAgent } from "./triage-agent"
 import { LogSleuth } from "./log-sleuth"
 import { RiskCommander } from "./risk-commander"
 import { IncidentScribe } from "./incident-scribe"
+import { CommsAgent } from "./comms-agent"
 
 const llm = Boolean(process.env.OPENAI_API_KEY)
 
@@ -48,12 +49,14 @@ const triage = new TriageAgent(environment, llm)
 const sleuth = new LogSleuth(environment)
 const commander = new RiskCommander(environment)
 const scribe = new IncidentScribe()
+const comms = new CommsAgent(environment, llm)
 
 feed.join(environment)
 triage.join(environment)
 sleuth.join(environment)
 commander.join(environment)
 scribe.join(environment)
+comms.join(environment)
 
 console.log(`=== OpsRoom — concurrent incident response${llm ? " (LLM mode)" : " (deterministic demo)"} ===\n`)
 
@@ -62,7 +65,14 @@ feed.replay()
 // Scenario length: sum of delays + tail; then write the artifact and exit.
 const totalMs = timeline.reduce((acc, e) => acc + e.delayMs, 0) + 8000
 setTimeout(() => {
-	scribe.writeReport("incident-timeline.md")
-	console.log(`\n[summary] sleuth signatures: ${sleuth.signatures.length}, triage findings: ${triage.findings.length}, commander challenges: ${commander.challenges.length}`)
-	process.exit(0)
+	// Comms runs before the report: its status update belongs on the bus and
+	// in the timeline artifact the scribe writes.
+	comms.finish()
+	setTimeout(() => {
+		scribe.writeReport("incident-timeline.md")
+		console.log(
+			`\n[summary] sleuth signatures: ${sleuth.signatures.length}, triage findings: ${triage.findings.length}, commander challenges: ${commander.challenges.length}`,
+		)
+		process.exit(0)
+	}, llm ? 12000 : 500) // generous window for the final local-LLM synthesis
 }, totalMs)

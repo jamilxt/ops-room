@@ -34,7 +34,9 @@ export class TriageAgent extends BaseParticipant {
 Rules:
 - Reply in at most 3 short sentences. No markdown, no headings, no lists.
 - Name the most likely root cause, referencing the specific service/metric/error you were given.
+- When you propose a mitigation, you MUST start that sentence with "PROPOSAL:" — this is a protocol token, the risk commander intercepts on it. Never use the word "restart" or "rollback" anywhere else.
 - End with exactly one concrete next action, prefixed "ACTION:".
+- If you receive a message containing "HOLD", your last proposal was challenged: reply with exactly one new sentence starting "REVISED PROPOSAL:" offering the least-blast-radius mitigation for the confirmed signatures (canary rollback, pool resize, or targeted lock retry — never all-pods).
 - Never give generic advice or explain what a metric means — the room already knows.`,
 			),
 		)
@@ -47,6 +49,24 @@ Rules:
 		if (message.startsWith("[sleuth]")) {
 			this.evidence.push(message)
 			this.log(`evidence received: ${message.slice(0, 60)}…`)
+			return
+		}
+		if (message.startsWith("[commander]") && message.includes("HOLD")) {
+			this.log(`challenge received — revising proposal`)
+			if (!this.llm) {
+				// Deterministic demo: fixed least-blast-radius answer.
+				sendMessage(
+					this.environment,
+					"[triage] REVISED PROPOSAL: roll back the 3 canary instances only; all-pods restart is off the table",
+					this,
+				)
+				return
+			}
+			// LLM path: re-infer with the challenge in context — the negotiation
+			// loop, end to end.
+			this.context.addContextItem(UserMessageItem.create(message))
+			const model = (process.env.LLM_MODEL as ModelName) ?? "deepseek-v4-flash"
+			runInference({ model, context: this.context, caller: this, environment: this.environment, streaming: false })
 			return
 		}
 		if (!message.startsWith("[alert]") && !message.startsWith("[metric]")) return
@@ -87,7 +107,7 @@ Rules:
 		setTimeout(() => {
 			const risky = message.includes("recommend whether to restart all pods")
 			const hypothesis = risky
-				? "recommendation: restart ALL orders-api pods immediately to clear the stuck connection pool"
+				? "PROPOSAL: restart ALL orders-api pods immediately to clear the stuck connection pool"
 				: message.includes("checkout")
 					? "hypothesis: checkout latency correlates with the deploy; suspect connection-pool exhaustion in orders-api"
 					: "hypothesis: partial degradation, likely a bad instance behind the load balancer"

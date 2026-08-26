@@ -7,10 +7,27 @@ Concurrent AI agents that fight a production incident together — built for the
 A live incident ops room where multiple agents run **truly concurrently** — no pipeline, no orchestrator:
 
 - **IncidentFeed** — replays a scripted production incident (deploy → alerts → logs → metrics) onto the shared `AgenticEnvironment`, exactly like real telemetry would
-- **TriageAgent** — reacts to alerts/metrics, forms hypotheses (LLM mode: streams real inference)
+- **TriageAgent** — reacts to alerts/metrics, forms hypotheses; **consumes the sleuth's evidence** before re-inferring; obeys commander HOLDs with a `REVISED PROPOSAL`
 - **LogSleuth** — works *in parallel* on raw log lines, extracts error signatures; never waits for triage
-- **RiskCommander** — watches specialist recommendations and challenges any with blast radius ("restart all pods" gets a HOLD), unprompted — emergent coordination, not a pipeline step
+- **RiskCommander** — intercepts mitigation proposals mid-room and challenges them with an evidence-citing HOLD, unprompted — emergent coordination, not a pipeline step
+- **CommsAgent** — silently watches the whole room, then at incident end drafts the customer-facing status update (LLM mode: real synthesis from the full transcript)
 - **IncidentScribe** — pure observer; writes a live `incident-timeline.md` of everything that crossed the environment
+
+## Inter-agent protocol
+
+Natural language is unreliable for safety interception — LLMs paraphrase the same
+mitigation a dozen ways ("restart all pods" / "restarting affected pods" / "rolling
+restart"). So mitigations travel as contract tokens:
+
+```
+[triage]    PROPOSAL: restart ALL orders-api pods immediately...
+[commander] HOLD — weigh it against the room's evidence ([sleuth] ... CHECKOUT_LOCK_ERROR ...)
+[triage]    REVISED PROPOSAL: roll back the 3 canary instances only...
+```
+
+- `PROPOSAL:` → intercepted deterministically (a prose heuristic stays as a safety net)
+- `REVISED PROPOSAL:` → resolves the negotiation, no ping-pong loops
+- HOLD messages cite actual shared evidence from the room
 
 ## Run it
 
@@ -59,8 +76,9 @@ npm start
 src/
   index.ts            # scenario wiring: who joins the environment
   incident-feed.ts    # deterministic telemetry participant
-  triage-agent.ts     # alert/metric specialist
+  triage-agent.ts     # alert/metric specialist (PROPOSAL/REVISED PROPOSAL)
   log-sleuth.ts       # log-line specialist (parallel)
-  risk-commander.ts   # challenges risky recommendations
+  risk-commander.ts   # evidence-citing interception agent
+  comms-agent.ts      # status-update synthesizer (end of incident)
   incident-scribe.ts  # observer → live timeline artifact
 ```
