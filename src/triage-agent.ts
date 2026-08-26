@@ -19,6 +19,7 @@ import type { IncidentFeed } from "./incident-feed"
  */
 export class TriageAgent extends BaseParticipant {
 	private readonly context = ModelContext.create("triage")
+	private readonly evidence: string[] = []
 	readonly findings: string[] = []
 
 	constructor(
@@ -40,12 +41,29 @@ Rules:
 	}
 
 	async onMessage(message: string): Promise<void> {
+		// Telemetry → think. The sleuth's [sleuth] findings land here too:
+		// consuming a teammate's evidence BEFORE re-inferring is the shared-
+		// state coordination the environment exists for.
+		if (message.startsWith("[sleuth]")) {
+			this.evidence.push(message)
+			this.log(`evidence received: ${message.slice(0, 60)}…`)
+			return
+		}
 		if (!message.startsWith("[alert]") && !message.startsWith("[metric]")) return
 
 		this.log(`picked up: ${message.slice(0, 70)}…`)
 		this.findings.push(message)
 
 		if (this.llm) {
+			// Fold in any teammate evidence the sleuth has published since the
+			// last inference — this is what makes it shared-state coordination
+			// rather than two agents working blind side-by-side.
+			if (this.evidence.length > 0) {
+				this.context.addContextItem(
+					UserMessageItem.create(`[evidence from log analyst]\n${this.evidence.join("\n")}`),
+				)
+				this.evidence.length = 0
+			}
 			this.context.addContextItem(UserMessageItem.create(message))
 			// deepseek-v4-flash routes through the generic OpenAI-compatible
 			// endpoint, so OPENAI_BASE_URL can point at Ollama / LM Studio /
