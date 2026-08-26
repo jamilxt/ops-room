@@ -12,9 +12,9 @@ Concurrent AI agents that fight a production incident together — built for the
 
 A live incident ops room where multiple agents run **truly concurrently** — no pipeline, no orchestrator:
 
-- **IncidentFeed** — replays a scripted production incident (deploy → alerts → logs → metrics) onto the shared `AgenticEnvironment`, exactly like real telemetry would
+- **IncidentFeed** — replays a scripted production incident onto the shared `AgenticEnvironment`, exactly like real telemetry would. Scenario is written for a **Java / Spring Boot shop**: a canary rollout of a Boot fat jar, an Actuator p95 alert on `POST /api/checkout`, Hikari pool saturation (`hikaricp.connections.pending=312`), JPA `PessimisticLockException` on cart rows
 - **TriageAgent** — reacts to alerts/metrics, forms hypotheses; **consumes the sleuth's evidence** before re-inferring; obeys commander HOLDs with a `REVISED PROPOSAL`
-- **LogSleuth** — works *in parallel* on raw log lines, extracts error signatures; never waits for triage. The only agent that **uses a real Mozaik tool**: its `search_logs` function tool greps actual fixture logs via the framework's function-calling loop, so every signature it publishes is earned from files, not guessed
+- **LogSleuth** — works *in parallel* on raw log lines, extracts error signatures; never waits for triage. The only agent that **uses a real Mozaik tool**: its `search_logs` function tool greps actual fixture logs (`CheckoutRepository.java`, `CheckoutService.java` stack frames) via the framework's function-calling loop, so every signature it publishes is earned from files, not guessed
 - **RiskCommander** — intercepts mitigation proposals mid-room and challenges them with an evidence-citing HOLD, unprompted — emergent coordination, not a pipeline step
 - **CommsAgent** — silently watches the whole room, then at incident end drafts the customer-facing status update (LLM mode: real synthesis from the full transcript)
 - **IncidentScribe** — pure observer; writes a live `incident-timeline.md` of everything that crossed the environment
@@ -41,6 +41,17 @@ restart"). So mitigations travel as contract tokens:
 npm install
 npm start
 ```
+
+### Web console (recommended for the demo)
+
+```bash
+npm run web
+# → http://localhost:8787  (custom port: OPSROOM_PORT=9000 npm run web)
+```
+
+Slack-style `#incident-war-room` rendering the live run in your browser: agent roster with live activity, every bus row as a chat bubble, HOLD/ESCALATION rows annotated with a "why this matters" line, and the escalation surfaces as a **⏸ Human decision required** card with **Approve / Reject** buttons wired to the real pause. `▶ Run again` restarts a fresh incident without leaving the page.
+
+CLI stays fully functional (same engine, same behavior):
 
 No API key needed — the demo runs fully deterministic. For real LLM inference, **any OpenAI-compatible endpoint works** (the `deepseek-v4-flash` registry entry routes through the generic `/v1/chat/completions` adapter): OpenAI, DeepSeek, OpenRouter, **Ollama, LM Studio, llama.cpp server** — local or remote.
 
@@ -80,7 +91,9 @@ npm start
 
 ```
 src/
-  index.ts            # scenario wiring: who joins the environment
+  index.ts            # CLI entrypoint (console mode)
+  web.ts              # web entrypoint: zero-dep SSE server + war-room UI
+  scenario.ts         # shared engine: timeline + who joins the environment
   incident-feed.ts    # deterministic telemetry participant
   triage-agent.ts     # alert/metric specialist (PROPOSAL/REVISED PROPOSAL)
   log-sleuth.ts       # log analyst — the tool user (search_logs via Mozaik function-calling)
@@ -89,14 +102,16 @@ src/
   oncall-engineer.ts  # HUMAN participant: approves/rejects escalations
   incident-scribe.ts  # observer → live timeline artifact
 fixtures/
-  orders-api.log      # what search_logs actually greps
+  orders-api.log      # what search_logs actually greps (Spring/Hikari stack frames)
   checkout.log
 scripts/
   test-oncall.ts      # escalation smoke test (both decision branches)
+  test-commander-gate.ts  # regression: gate loopholes, two-strike, exemptions (8 checks)
 ```
 
 ## Design notes
 
 - **Streaming is off by default.** Not an omission: Mozaik 3.14's SSE delivery drops semantic events end-to-end (reproduced and documented). OpsRoom uses single-shot inference; nothing in the demo needs token streaming.
-- **Interception is a contract, not vibes.** Agents speak `PROPOSAL:` / `REVISED PROPOSAL:` tokens so the commander's grounding gate fires deterministically even when the LLM paraphrases.
-- **A human has the last word.** When a revised proposal still cites no evidence, the commander ESCALATES and the on-call engineer (you, at a keyboard) decides.
+- **Interception is a contract, not vibes.** Agents speak `PROPOSAL:` / `REVISED PROPOSAL:` tokens so the commander's grounding gate fires deterministically even when the LLM paraphrases. Tokens must open their own statement; revisions are gated like fresh proposals; two consecutive ungrounded rows escalate to the human instead of looping.
+- **A human has the last word.** When a revised proposal still cites no evidence, the commander ESCALATES and the on-call engineer decides — at the keyboard (`OPSROOM_ONCALL=interactive npm start`) or with buttons in the web console.
+- **One engine, two frontends.** `scenario.ts` drives both the CLI and the web console — same bus, same participants, same evidence gates; only the output sink differs. The scenario speaks Java/Spring (Hikari, Actuator, JPA locks) while keeping machine tags and error codes stable, so the negotiating agents don't care and Java-fluent humans do.

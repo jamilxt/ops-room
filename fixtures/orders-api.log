@@ -1,6 +1,6 @@
-2026-09-05T14:00:21.312Z orders-api/src/main/ts/pool.ts:88 PoolTimeoutError TIMEOUT_ERROR acquiring connection, waited 5000ms
-2026-09-05T14:00:22.447Z orders-api/src/main/ts/pool.ts:88 PoolTimeoutError TIMEOUT_ERROR acquiring connection, waited 5000ms
-2026-09-05T14:00:23.001Z orders-api/src/main/ts/pool.ts:88 PoolTimeoutError TIMEOUT_ERROR acquiring connection, waited 5000ms
-2026-09-05T14:00:24.890Z orders-api/src/main/ts/pool.ts:88 PoolTimeoutError TIMEOUT_ERROR acquiring connection, waited 5000ms
-2026-09-05T14:00:29.101Z orders-api/src/main/ts/pool.ts:88 PoolTimeoutError TIMEOUT_ERROR x1204/min — pool utilization 100%
-2026-09-05T14:01:03.450Z orders-api/src/main/ts/pool.ts:88 PoolTimeoutError first occurrence right after canary window opened
+2026-09-05T14:00:21.312Z orders-api CheckoutRepository.java:88 SQLTransientConnectionException TIMEOUT_ERROR acquiring Hikari connection, waited 5000ms
+2026-09-05T14:00:22.447Z orders-api CheckoutRepository.java:88 SQLTransientConnectionException TIMEOUT_ERROR acquiring Hikari connection, waited 5000ms
+2026-09-05T14:00:23.001Z orders-api CheckoutRepository.java:88 SQLTransientConnectionException TIMEOUT_ERROR acquiring Hikari connection, waited 5000ms
+2026-09-05T14:00:24.890Z orders-api CheckoutRepository.java:88 SQLTransientConnectionException TIMEOUT_ERROR acquiring Hikari connection, waited 5000ms
+2026-09-05T14:00:29.101Z orders-api CheckoutRepository.java:88 SQLTransientConnectionException TIMEOUT_ERROR x1204/min — hikaricp.connections.pending=312
+2026-09-05T14:01:03.450Z orders-api CheckoutRepository.java:88 SQLTransientConnectionException TIMEOUT_ERROR first occurrence right after canary window opened

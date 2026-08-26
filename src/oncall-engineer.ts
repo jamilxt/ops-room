@@ -5,13 +5,23 @@ import { createInterface } from "node:readline"
  * OnCallEngineer — the HUMAN in the room (framework "human participant"
  * pattern). When a revised proposal STILL fails evidence-grounding, the
  * RiskCommander escalates and a person makes the final call:
- *   - OPSROOM_ONCALL=interactive → the script pauses and asks on stdin.
+ *   - interactive → askHuman() pauses the room until a human answers
+ *     (stdin in CLI mode, Approve/Reject buttons in web mode)
  *   - default → auto-decision so demos/CI never hang.
  */
 export class OnCallEngineer extends BaseParticipant {
 	constructor(
 		private readonly environment: AgenticEnvironment,
 		private readonly interactive: boolean,
+		private readonly askHuman: (prompt: string) => Promise<string> = async (prompt) => {
+			const rl = createInterface({ input: process.stdin, output: process.stdout })
+			return new Promise((resolve) =>
+				rl.question(prompt, (answer) => {
+					rl.close()
+					resolve(answer)
+				}),
+			)
+		},
 	) {
 		super()
 	}
@@ -24,11 +34,9 @@ export class OnCallEngineer extends BaseParticipant {
 			return
 		}
 
-		const rl = createInterface({ input: process.stdin, output: process.stdout })
-		const answer = await new Promise<string>((resolve) =>
-			rl.question(`\n⏸  ON-CALL (you): the room escalated an ungrounded plan.\n   ${message.slice(0, 160)}\n   Do you APPROVE proceeding? [y/N] `, resolve),
+		const answer = await this.askHuman(
+			`\n⏸  ON-CALL (you): the room escalated an ungrounded plan.\n   ${message.slice(0, 160)}\n   Do you APPROVE proceeding? [y/N] `,
 		)
-		rl.close()
 		const approved = answer.trim().toLowerCase().startsWith("y")
 		sendMessage(
 			this.environment,

@@ -11,7 +11,11 @@ export class IncidentScribe extends BaseParticipant {
 	private startedAt = Date.now()
 	private lines: string[] = ["# Incident timeline (generated live by IncidentScribe)", ""]
 
-	constructor(private readonly onSig?: () => void) {
+	constructor(
+		private readonly onSig?: () => void,
+		/** Output sink; defaults to console so the CLI behaves as before. */
+		private readonly say: (line: string) => void = (line) => console.log(line),
+	) {
 		super()
 	}
 
@@ -22,12 +26,12 @@ export class IncidentScribe extends BaseParticipant {
 		if (who === "sleuth" && message.includes("error signature")) this.onSig?.()
 		const elapsed = ((Date.now() - this.startedAt) / 1000).toFixed(1)
 		const line = `T+${elapsed}s ${who === "unknown" ? "" : `[${who}] `}${message.replace(/^\[\w+\]\s*/, "")}`
-		console.log(line)
+		this.say(line)
 		this.lines.push(`- \`${line}\``)
 	}
 
 	writeReport(path: string): void {
 		writeFileSync(path, this.lines.join("\n") + "\n")
-		console.log(`\n[scribe] timeline written to ${path}`)
+		this.say(`\n[scribe] timeline written to ${path}`)
 	}
 }
