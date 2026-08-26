@@ -178,10 +178,13 @@ const PHASES = [
 /* ---------- build DOM ---------- */
 const stage = document.getElementById("stage");
 const laneEls = {};
+const LANE_Y = {};
 LANES.forEach(([id, name, role], i) => {
+	const y = TOP + i * 54;
 	const lane = document.createElement("div");
 	lane.className = "lane";
-	lane.style.top = (TOP + i * 54) + "px";
+	lane.style.top = y + "px";
+	LANE_Y[id] = y;
 	const label = document.createElement("div");
 	label.className = "lane-label";
 	const b = document.createElement("b"); b.textContent = name;
@@ -207,6 +210,7 @@ for (const [t, lane, kind, text] of Events()) {
 	else if (lane === "scribe") { cls = "c-scribe"; who = "scribe"; }
 	c.className = "chip " + cls;
 	c.style.left = (178 + t * PX) + "px";
+	c.style.top = (LANE_Y[lane] + 13) + "px";
 	const w = document.createElement("span"); w.className = "who"; w.textContent = who;
 	c.appendChild(w);
 	c.appendChild(document.createTextNode(text));
