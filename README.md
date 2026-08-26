@@ -4,6 +4,8 @@ Concurrent AI agents that fight a production incident together — built for the
 
 **[Architecture diagram →](docs/architecture.html)** — six participants around one shared message bus; open in any browser.
 
+**[Animated walkthrough →](docs/walkthrough.html)** — replay of a real run as a movie: six swimlanes, live message chips, the HOLD moment, comms' status update, with plain-English captions per phase.
+
 **[Demo video script →](docs/demo-video-script.md)** — shot-by-shot 2-minute recording plan.
 
 ## What it is

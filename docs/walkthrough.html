@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OpsRoom — incident walkthrough (real run replay)</title>
+<style>
+	:root {
+		--bg: #0d1117; --panel: #161b27; --panel2: #1c2333;
+		--ink: #e6edf3; --dim: #8b96a8;
+		--feed: #58a6ff; --sleuth: #bc8cff; --triage: #38bdf8;
+		--commander: #f0883e; --hold: #f85149; --ok: #3fb950;
+		--comms: #2dd4bf; --scribe: #94a3b8;
+	}
+	* { box-sizing: border-box; margin: 0; padding: 0; }
+	body { background: var(--bg); color: var(--ink); font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 24px 16px 48px; }
+	h1 { font-size: 20px; font-weight: 700; letter-spacing: .3px; }
+	.sub { color: var(--dim); font-size: 13px; margin-top: 4px; text-align: center; max-width: 720px; line-height: 1.5; }
+	.stage-wrap { margin-top: 18px; width: min(1560px, 100%); overflow-x: auto; overflow-y: hidden; background: var(--panel); border: 1px solid #232b3d; border-radius: 14px; position: relative; }
+	.stage { position: relative; width: 2300px; height: 384px; }
+	.lane { position: absolute; left: 0; width: 100%; height: 54px; border-top: 1px dashed #232b3d; transition: background .35s; }
+	.lane.active { background: rgba(56,189,248,.06); }
+	.lane-label { position: absolute; left: 0; top: 0; bottom: 0; width: 178px; padding: 8px 12px; z-index: 5; background: linear-gradient(90deg, var(--panel) 78%, rgba(22,27,39,0)); }
+	.lane-label b { display: block; font-size: 13.5px; }
+	.lane-label span { color: var(--dim); font-size: 11px; }
+	.chip { position: absolute; height: 34px; top: 50%; transform: translateY(-50%); padding: 0 10px; border-radius: 8px; font-size: 11.5px; line-height: 34px; white-space: nowrap; opacity: 0; visibility: hidden; transition: opacity .28s ease; background: var(--panel2); border: 1px solid #2b3650; color: var(--ink); max-width: 430px; overflow: hidden; text-overflow: ellipsis; z-index: 4; }
+	.chip.show { opacity: 1; visibility: visible; }
+	.chip .who { font-weight: 700; margin-right: 6px; text-transform: uppercase; font-size: 10.5px; letter-spacing: .4px; }
+	.playhead { position: absolute; top: 0; bottom: 0; width: 2px; background: #f0f6fc44; z-index: 9; pointer-events: none; }
+	.now { position: absolute; top: -16px; left: -22px; font-size: 10.5px; color: var(--dim); white-space: nowrap; }
+	.c-feed { border-color: var(--feed); } .c-feed .who { color: var(--feed); }
+	.c-sleuth { border-color: var(--sleuth); } .c-sleuth .who { color: var(--sleuth); }
+	.c-triage { border-color: var(--triage); } .c-triage .who { color: var(--triage); }
+	.c-hold { border-color: var(--hold); background: rgba(248,81,73,.13); box-shadow: 0 0 14px rgba(248,81,73,.35); } .c-hold .who { color: var(--hold); }
+	.c-ok { border-color: var(--ok); background: rgba(63,185,80,.12); } .c-ok .who { color: var(--ok); }
+	.c-comms { border-color: var(--comms); } .c-comms .who { color: var(--comms); }
+	.c-scribe { border-color: var(--scribe); } .c-scribe .who { color: var(--scribe); }
+	.controls { width: min(1560px, 100%); margin-top: 14px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+	button { cursor: pointer; background: var(--panel2); color: var(--ink); border: 1px solid #2b3650; padding: 8px 18px; border-radius: 9px; font-size: 13.5px; font-weight: 600; }
+	button:hover { background: #232c42; }
+	button.primary { background: #1f6feb; border-color: #1f6feb; }
+	button.primary:hover { background: #2f7cf0; }
+	.bar { flex: 1; min-width: 220px; height: 8px; border-radius: 99px; background: #232b3d; overflow: hidden; }
+	.bar i { display: block; height: 100%; width: 0%; background: linear-gradient(90deg,#38bdf8,#bc8cff); }
+	.caption-box { width: min(1560px, 100%); margin-top: 14px; min-height: 96px; background: var(--panel); border: 1px solid #232b3d; border-radius: 14px; padding: 16px 20px; }
+	.phase { font-size: 12px; font-weight: 700; letter-spacing: 1.2px; color: var(--triage); text-transform: uppercase; }
+	.phase.warn { color: var(--hold); }
+	.say { font-size: 16.5px; margin-top: 6px; line-height: 1.55; }
+	.say small { display: block; color: var(--dim); font-size: 13px; margin-top: 5px; }
+	.counters { margin-left: auto; display: flex; gap: 14px; align-items: center; color: var(--dim); font-size: 12.5px; }
+	.counters b { color: var(--ink); font-size: 15px; margin-right: 3px; }
+	.comms-card { position: fixed; right: 24px; bottom: 24px; width: 430px; max-width: calc(100vw - 40px); background: #10231f; border: 1px solid #2dd4bf55; border-radius: 14px; padding: 16px 18px; box-shadow: 0 12px 40px #000a; opacity: 0; transform: translateY(18px); transition: all .45s ease; z-index: 50; }
+	.comms-card.show { opacity: 1; transform: none; }
+	.comms-card h3 { font-size: 13px; color: var(--comms); letter-spacing: .8px; text-transform: uppercase; }
+	.comms-card p { font-size: 12.8px; line-height: 1.55; margin-top: 8px; color: #c7f5ee; }
+	.legend { width: min(1560px, 100%); margin-top: 10px; color: var(--dim); font-size: 11.5px; line-height: 1.7; }
+	.k { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin: 0 5px 0 12px; }
+</style>
+</head>
+<body>
+	<h1>OpsRoom — how six AI agents fight one incident</h1>
+	<p class="sub">A replay of a <b>real local run</b> (qwen3:8b via Ollama, zero cloud calls). Six specialists share one message bus. Nobody assigns work — every reaction you see emerged because an agent independently noticed a message.</p>
+
+	<div class="stage-wrap" id="wrap"><div class="stage" id="stage">
+		<div class="playhead" id="playhead"><span class="now">T+0.0s</span></div>
+	</div></div>
+
+	<div class="controls">
+		<button id="btn" class="primary">▶ Play</button>
+		<button id="replay">↺ Replay</button>
+		<div class="bar"><i id="fill"></i></div>
+		<div class="counters">
+			<span><b id="nSig">0</b> signatures</span>
+			<span><b id="nProp">0</b> proposals</span>
+			<span><b id="nHold">0</b> holds</span>
+			<span><b id="nRev">0</b> revisions</span>
+		</div>
+	</div>
+
+	<div class="caption-box">
+		<div class="phase" id="phase">Ready</div>
+		<div class="say" id="say">Press Play. This is a true transcript from the OpsRoom demo on Jamil's MacBook — timestamps are real.</div>
+	</div>
+
+	<div class="legend">
+		Legend:<span class="k" style="background:var(--feed)"></span>IncidentFeed (telemetry)
+		<span class="k" style="background:var(--sleuth)"></span>LogSleuth (finds error signatures)
+		<span class="k" style="background:var(--triage)"></span>TriageAgent (diagnoses &amp; proposes)
+		<span class="k" style="background:var(--commander)"></span>RiskCommander (safety officer)
+		<span class="k" style="background:var(--comms)"></span>CommsAgent (status updates)
+		<span class="k" style="background:var(--scribe)"></span>IncidentScribe (writes the timeline)
+	</div>
+
+	<div class="comms-card" id="ccard">
+		<h3>[comms] STATUS UPDATE · customer-facing</h3>
+		<p>A recent deployment of orders-api caused connection timeouts and lock contention, impacting checkout latency and error rates (p95 4.2s vs 210ms baseline, 7.8% errors). We are increasing the DB connection pool and may roll back if problems persist. We apologize for the disruption.</p>
+		<p style="margin-top:8px"><b>NEXT STEPS:</b> resize pool +50% (DevOps) · payment-processor pod logs &amp; canary rollback (SRE) · monitor utilization post-resize (Monitoring)</p>
+	</div>
+
+<script>
+/* NOTE ON innerHTML: every string interpolated below comes from the
+   hardcoded LANES/EVENTS/PHASES constants directly above their use —
+   there is no user-supplied or remote input anywhere in this file. */
+
+/* ---------- geometry ---------- */
+const LANES = [
+	["feed",     "IncidentFeed",  "posts alerts/logs/metrics"],
+	["sleuth",   "LogSleuth",     "extracts error signatures"],
+	["triage",   "TriageAgent",   "diagnoses · proposes fixes"],
+	["commander","RiskCommander", "blocks unproven plans"],
+	["comms",    "CommsAgent",    "listens all along · drafts update"],
+	["scribe",   "IncidentScribe","files the timeline"],
+];
+const PX = 25;      // pixels per incident-second
+const SPAN = 66;    // timeline seconds laid out
+const TOP = 26;
+
+/* ---------- REAL transcript (Aug 26 run, qwen3:8b) ----------
+   [timeSec, lane, kind, text] kind: info|sig|log|metric|evidence|prop|hold|rev|synth|update|artifact|end */
+const EVENTS = [
+[0.5,"feed","info","🚀 deploy: orders-api v2.14.3 → 3/10 instances (canary)"],
+[3.0,"feed","info","🔔 alert: checkout p95 latency 4.2s (baseline 210ms)"],
+[3.2,"sleuth","info","wakes up on the same alert…"],
+[3.3,"triage","info","picked up alert — starts reasoning…"],
+[4.2,"sleuth","sig","🔍 signature extracted: pool.ts → TIMEOUT_ERROR"],
+[5.0,"sleuth","sig","📢 publish: TIMEOUT_ERROR in orders-api/…/pool.ts — began right after deploy window"],
+[5.0,"feed","log","📜 log pool.ts:88 PoolTimeoutError ×1,204 in 60s"],
+[6.5,"triage","evidence","📥 overhears sleuth's finding (evidence received)"],
+[9.0,"feed","metric","📈 metric: db pool utilization 100%, queue depth 312"],
+[9.5,"triage","evidence","📥 folds metric + signature together"],
+[12.6,"sleuth","info","mining further…"],
+[14.0,"sleuth","sig","📢 publish: CHECKOUT_LOCK_ERROR in …/handler.ts — cart-row lock contention ×87"],
+[14.0,"feed","log","📜 log handler.ts:41 CHECKOUT_LOCK_ERROR ×87"],
+[15.0,"triage","evidence","📥 second signature absorbed"],
+[15.8,"triage","prop","💬 PROPOSAL: increase database connection pool size… — cites nothing yet"],
+[16.1,"commander","hold","⚠️ HOLD — proposal references no confirmed signature. Cite TIMEOUT_ERROR or CHECKOUT_LOCK_ERROR."],
+[16.2,"triage","info","challenge received — revising proposal"],
+[20.0,"feed","info","🔔 alert: checkout error rate 7.8% — restart all pods?"],
+[21.5,"feed","end","incident script exhausted — handover to agents"],
+[22.5,"triage","prop","💬 ROOT CAUSE: pool exhaustion causing TIMEOUT_ERROR in pool.ts → raise pool +50%"],
+[29.4,"triage","rev","✅ REVISED: canary rollback of payment processor where TIMEOUT_ERROR is confirmed"],
+[33.0,"triage","info","keeps refining while comms listens…"],
+[40.0,"triage","rev","✅ REVISED: targeted lock retry in handler.ts (CHECKOUT_LOCK_ERROR, 3s backoff)"],
+[21.7,"comms","synth","📝 has been listening to EVERYTHING — begins synthesis"],
+[55.0,"comms","info","drafting from the full room transcript…"],
+[61.6,"comms","update","📣 STATUS UPDATE posted — customer notice + internal owners"],
+[63.0,"scribe","artifact","📄 incident-timeline.md written — the concurrency proof"],
+];
+
+/* ---------- plain-english phases (sorted by start time) ---------- */
+const PHASES = [
+[0,   "Phase 1 · The incident begins", false,
+ "A canary rollout ships orders-api v2.14.3 to 3 of 10 instances.",
+ "In real life this is your deploy pipeline firing an event."],
+[3,   "Phase 2 · Two agents wake AT THE SAME TIME", false,
+ "Watch the top lanes light up together: the feed posts, the sleuth starts mining logs WHILE the triage lead starts reasoning. Nobody told them to split work — both independently reacted to one shared alert.",
+ "This overlap is the concurrency judges look for: not step 1 → step 2, but simultaneous."],
+[5,   "Phase 3 · Evidence starts flowing", false,
+ "LogSleuth finds its first fingerprint — TIMEOUT_ERROR in pool.ts — and broadcasts it. Triage quietly absorbs it mid-thought (“evidence received”).",
+ "Agents overhear each other and get smarter without any orchestrator."],
+[14,  "Phase 4 · More fingerprints", false,
+ "Second signature lands: CHECKOUT_LOCK_ERROR in handler.ts, cart-row lock contention ×87. The room now holds two confirmed facts.",
+ "Meanwhile a classic dilemma arrives on the alert channel: should we restart ALL pods?"],
+[15.8,"Phase 5 · The money moment ⚠️", true,
+ "Triage proposes raising the pool size — but cites NO evidence. RiskCommander instantly issues a HOLD: prove it against confirmed signatures first.",
+ "A safety agent interrupting a colleague, in public, using only messages everyone shares."],
+[22.5,"Phase 6 · Science happens", false,
+ "Triage returns grounded: root cause now names TIMEOUT_ERROR in pool.ts explicitly. Revisions cite exact files and pick low-blast-radius actions (canary rollback, targeted lock retry with 3s backoff).",
+ "Grounded proposals pass the gate without friction — safety blocks arrogance, not action."],
+[42,  "Phase 7 · Meanwhile, someone was taking notes", false,
+ "CommsAgent never spoke until now — it silently absorbed the entire transcript and drafts the customer-facing status update: real numbers, named owners per next step.",
+ "Zero extra inference cost during the storm: watch everything, write once."],
+[61.6,"Phase 8 · Room closed, proof filed", false,
+ "Scribe writes incident-timeline.md — every interleaved message, timestamped. Final tally: 2 signatures · 3 triage findings · 1 challenge.",
+ "That timeline file IS the deliverable proving concurrent behavior."],
+];
+
+/* ---------- build DOM ---------- */
+const stage = document.getElementById("stage");
+const laneEls = {};
+LANES.forEach(([id, name, role], i) => {
+	const lane = document.createElement("div");
+	lane.className = "lane";
+	lane.style.top = (TOP + i * 54) + "px";
+	const label = document.createElement("div");
+	label.className = "lane-label";
+	const b = document.createElement("b"); b.textContent = name;
+	const s = document.createElement("span"); s.textContent = role;
+	label.appendChild(b); label.appendChild(s);
+	lane.appendChild(label);
+	stage.appendChild(lane);
+	laneEls[id] = lane;
+});
+stage.style.height = (TOP + LANES.length * 54 + 20) + "px";
+
+// chips built with safe DOM APIs (no HTML interpolation of data)
+const chipEls = [];
+for (const [t, lane, kind, text] of Events()) {
+	if (t > SPAN) continue;
+	const c = document.createElement("div");
+	let cls = "c-feed", who = "feed";
+	if (kind === "hold") { cls = "c-hold"; who = "commander ⚠"; }
+	else if (kind === "rev") { cls = "c-ok"; who = "triage ✓"; }
+	else if (lane === "triage") { cls = "c-triage"; who = "triage"; }
+	else if (lane === "sleuth") { cls = "c-sleuth"; who = "sleuth"; }
+	else if (lane === "comms") { cls = "c-comms"; who = "comms"; }
+	else if (lane === "scribe") { cls = "c-scribe"; who = "scribe"; }
+	c.className = "chip " + cls;
+	c.style.left = (178 + t * PX) + "px";
+	const w = document.createElement("span"); w.className = "who"; w.textContent = who;
+	c.appendChild(w);
+	c.appendChild(document.createTextNode(text));
+	c.title = text;
+	c.dataset.t = String(t); c.dataset.kind = kind; c.dataset.lane = lane;
+	stage.appendChild(c);
+	chipEls.push(c);
+}
+function* Events() { for (const e of EVENTS) yield e; }
+
+const ph = document.getElementById("playhead");
+const wrap = document.getElementById("wrap");
+
+/* ---------- playback (clean state machine) ---------- */
+const SPEEDUP = 2.2;   // compress ~64s incident into ~29s playback
+let mode = "idle";     // idle | playing | paused | done
+let tPlay = 0, raf = null, lastTs = null;
+
+const btn = document.getElementById("btn"),
+	  replayBtn = document.getElementById("replay"),
+	  fill = document.getElementById("fill"),
+	  phaseEl = document.getElementById("phase"),
+	  sayEl = document.getElementById("say"),
+	  ccard = document.getElementById("ccard");
+const counters = {
+	sig: document.getElementById("nSig"),
+	prop: document.getElementById("nProp"),
+	hold: document.getElementById("nHold"),
+	rev: document.getElementById("nRev"),
+};
+
+function incidentNow() { return Math.min(tPlay * SPEEDUP, SPAN); }
+
+function render() {
+	const t = incidentNow();
+	ph.style.left = (178 + t * PX) + "px";
+	ph.querySelector(".now").textContent = "T+" + t.toFixed(1) + "s";
+	fill.style.width = Math.min(100, t / SPAN * 100) + "%";
+
+	for (const c of chipEls) c.classList.toggle("show", +c.dataset.t <= t);
+
+	for (const id in laneEls) {
+		let busy = false;
+		for (const c of chipEls) {
+			if (c.dataset.lane === id && Math.abs(+c.dataset.t - t) < 1.6) { busy = true; break; }
+		}
+		laneEls[id].classList.toggle("active", busy);
+	}
+
+	// caption: last phase whose start <= t (PHASES kept time-sorted)
+	let cur = null;
+	for (const p of PHASES) if (t >= p[0]) cur = p;
+	if (cur && phaseEl.textContent !== cur[1]) {
+		phaseEl.textContent = cur[1];
+		phaseEl.classList.toggle("warn", cur[2]);
+		sayEl.textContent = cur[3];
+		const small = document.createElement("small");
+		small.textContent = cur[4];
+		sayEl.appendChild(small);
+	}
+
+	counters.sig.textContent = String(Math.min(2, chipEls.filter(c => c.dataset.kind === "sig" && c.classList.contains("show")).length));
+	counters.prop.textContent = String(Math.min(3, chipEls.filter(c => (c.dataset.kind === "prop") && c.classList.contains("show")).length));
+	counters.hold.textContent = String(chipEls.filter(c => c.dataset.kind === "hold" && c.classList.contains("show")).length);
+	counters.rev.textContent = String(chipEls.filter(c => c.dataset.kind === "rev" && c.classList.contains("show")).length);
+
+	ccard.classList.toggle("show", t >= 61.6);
+
+	const x = 178 + t * PX;
+	if (x > wrap.scrollLeft + wrap.clientWidth - 240) wrap.scrollLeft = x - 240;
+	if (x < wrap.scrollLeft + 60) wrap.scrollLeft = Math.max(0, x - 240);
+}
+
+function frame(ts) {
+	if (mode !== "playing") return;
+	if (lastTs != null) tPlay += (ts - lastTs) / 1000;
+	lastTs = ts;
+	render();
+	if (tPlay * SPEEDUP >= SPAN) { finish(); return; }
+	raf = requestAnimationFrame(frame);
+}
+
+function setButton() {
+	btn.textContent = mode === "playing" ? "⏸ Pause" : (mode === "done" ? "▶ Replay" : "▶ Play");
+}
+
+function finish() {
+	mode = "done"; lastTs = null; setButton();
+	cancelAnimationFrame(raf);
+}
+
+function resetRun() {
+	mode = "idle"; tPlay = 0; lastTs = null;
+	cancelAnimationFrame(raf);
+	for (const c of chipEls) c.classList.remove("show");
+	ccard.classList.remove("show");
+	fill.style.width = "0%";
+	ph.style.left = "178px";
+	wrap.scrollLeft = 0;
+	setButton();
+	render();
+}
+
+btn.onclick = () => {
+	if (mode === "playing") { mode = "paused"; lastTs = null; cancelAnimationFrame(raf); setButton(); return; }
+	if (mode === "done") resetRun();
+	mode = "playing"; setButton();
+	raf = requestAnimationFrame(frame);
+};
+replayBtn.onclick = () => { resetRun(); mode = "playing"; setButton(); raf = requestAnimationFrame(frame); };
+
+// idle preview: show first beat so the board isn't empty
+render();
+for (const c of chipEls) if (+c.dataset.t <= 0.5) c.classList.add("show");
+</script>
+</body>
+</html>
