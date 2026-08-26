@@ -15,9 +15,11 @@ export class IncidentScribe extends BaseParticipant {
 	}
 
 	async onMessage(message: string, source?: Participant): Promise<void> {
-		const who = source?.constructor?.name ?? "unknown"
+		// Every bus message carries its own identity tag ([triage], [sleuth],
+		// [commander], ...) — prefer it over reflective class names.
+		const who = message.match(/^\[(\w+)\]/)?.[1] ?? source?.constructor?.name ?? "unknown"
 		const elapsed = ((Date.now() - this.startedAt) / 1000).toFixed(1)
-		const line = `T+${elapsed}s [${who}] ${message}`
+		const line = `T+${elapsed}s ${who === "unknown" ? "" : `[${who}] `}${message.replace(/^\[\w+\]\s*/, "")}`
 		console.log(line)
 		this.lines.push(`- \`${line}\``)
 	}
