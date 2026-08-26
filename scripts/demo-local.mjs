@@ -69,11 +69,14 @@ if (serverType === "ollama" && !localModels.includes(registryName)) {
 			console.log(`[demo:local] try manually:  ollama cp ${source} ${registryName}`)
 		}
 		// Verify the alias actually landed before promising LLM mode.
+		// Note: `ollama cp src deepseek-v4-flash` creates "deepseek-v4-flash:latest"
+		// (Ollama auto-appends :latest), so match with or without the tag.
 		try {
 			const res = await fetch(baseUrl.replace(/\/v1\/?$/, "") + "/api/tags")
 			const data = await res.json()
 			const names = (data.models ?? []).map((m) => m.name)
-			if (!names.includes(registryName)) {
+			const aliasPresent = names.some((n) => n === registryName || n.startsWith(`${registryName}:`))
+			if (!aliasPresent) {
 				console.log(`[demo:local] alias not present after copy — falling back to DETERMINISTIC demo`)
 				useLlm = false
 			} else {

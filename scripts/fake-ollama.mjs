@@ -23,8 +23,10 @@ const server = http.createServer((req, res) => {
 			const { source, destination } = JSON.parse(body)
 			const src = models.find((m) => m.name === source)
 			if (!src) return json(404, { error: `model '${source}' not found` })
-			models.push({ name: destination })
-			console.log(`[fake-ollama] copied ${source} → ${destination}`)
+			// Mirror real Ollama: a copy without an explicit tag gets :latest appended.
+			const name = destination.includes(":") ? destination : `${destination}:latest`
+			models.push({ name })
+			console.log(`[fake-ollama] copied ${source} → ${name}`)
 			return json(200, { status: "success" })
 		})
 		return
@@ -36,7 +38,9 @@ const server = http.createServer((req, res) => {
 		req.on("end", () => {
 			const parsed = JSON.parse(body)
 			console.log(`[fake-ollama] request model="${parsed.model}"`)
-			const exists = models.some((m) => m.name === parsed.model)
+			// Mirror real Ollama: untagged names resolve to :latest.
+			const requested = parsed.model.includes(":") ? parsed.model : `${parsed.model}:latest`
+			const exists = models.some((m) => m.name === requested)
 			if (!exists) {
 				return json(404, {
 					error: { message: `model '${parsed.model}' not found`, type: "not_found_error", param: null, code: null },
