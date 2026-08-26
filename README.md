@@ -2,6 +2,8 @@
 
 Concurrent AI agents that fight a production incident together — built for the [JigJoy × daily.dev × Hyperskill hackathon](https://build.jigjoy.ai/) (Sep 5–6, 2026) on the [Mozaik](https://github.com/jigjoy-ai/mozaik) agentic environment.
 
+**[Architecture diagram →](docs/architecture.html)** — six participants around one shared message bus; open in any browser.
+
 ## What it is
 
 A live incident ops room where multiple agents run **truly concurrently** — no pipeline, no orchestrator:
