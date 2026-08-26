@@ -10,6 +10,8 @@
 - `T+9.9s [triage] hypothesis: partial degradation, likely a bad instance behind the load balancer`
 - `T+14.0s [log] log: orders-api/src/main/ts/handler.ts:41 CHECKOUT_LOCK_ERROR lock contention on cart rows (x87)`
 - `T+20.0s [alert] alert: checkout error rate 7.8% — page the on-call, recommend whether to restart all pods`
+- `T+20.9s [commander] ESCALATION — that proposal does not reference any confirmed signature (TIMEOUT_ERROR, CHECKOUT_LOCK_ERROR). Confirmed evidence so far: TIMEOUT_ERROR, CHECKOUT_LOCK_ERROR. This has gone past automated review — escalating to the on-call engineer for a human decision.`
+- `T+20.9s [oncall] auto-review: proceeding with the revised proposal under extra monitoring`
 - `T+20.9s [triage] REVISED PROPOSAL: roll back the 3 canary instances only; all-pods restart is off the table`
 - `T+20.9s [commander] HOLD — that proposal does not reference any confirmed signature (TIMEOUT_ERROR, CHECKOUT_LOCK_ERROR). Confirmed evidence so far: TIMEOUT_ERROR, CHECKOUT_LOCK_ERROR. Revise it against the confirmed signatures — PROPOSAL must cite at least one (REVISED PROPOSAL:).`
 - `T+20.9s [triage] PROPOSAL: restart ALL orders-api pods immediately to clear the stuck connection pool`

@@ -19,6 +19,9 @@ export class RiskCommander extends BaseParticipant {
 	private readonly signaturesSeen: string[] = []
 	private latestSignature: string | null = null
 	private lastChallenged: string | null = null
+	// Consecutive ungrounded PROPOSAL/REVISED PROPOSAL rows — reset when any
+	// grounded one lands. Drives the two-strike escalation bound.
+	private ungroundedStrikes = 0
 
 	constructor(private readonly environment: AgenticEnvironment) {
 		super()
@@ -40,49 +43,60 @@ export class RiskCommander extends BaseParticipant {
 		// (protects against renegotiation ping-pong).
 		if (message === this.lastChallenged) return
 
-		// Contract tokens: strip the routing prefix first, then match at string
-		// start or after a newline — covers both single-line replies and
-		// multi-part answers like "ROOT CAUSE: ...\nPROPOSAL: ...".
+		// Contract tokens: strip the routing prefix, then require the token to
+		// open its own statement — start of message, a new line, or a sentence
+		// boundary ("...contention. PROPOSAL: ..."). A bare space is NOT a
+		// boundary, so "REVISED PROPOSAL:" can never masquerade as a plain
+		// proposal. Models under pressure cram everything onto one line;
+		// newline-only anchoring let them dodge the gate (observed 2026-09).
 		const body = message.replace(/^\[triage\]\s*/, "")
-		const isRevision = /(^|\n)REVISED PROPOSAL:/.test(body)
-		const isProposal = !isRevision && /(^|\n)PROPOSAL:/.test(body)
+		const OPEN = "(^|\\n|[.!?]\\s)"
+		const isRevision = new RegExp(`${OPEN}REVISED PROPOSAL:`).test(body)
+		const isProposal = !isRevision && new RegExp(`${OPEN}PROPOSAL:`).test(body)
 
-		let risky = false
-		let reason = ""
-		if (isProposal) {
-			// Evidence-grounding gate: a mitigation proposal must reference at
-			// least one confirmed signature. Safe-sounding but ungrounded plans
-			// get challenged too — grounding is what makes them trustworthy.
+		if (isProposal || isRevision) {
+			// Evidence-grounding gate — applies to BOTH forms. Before this,
+			// an uncited "REVISED PROPOSAL:" skipped scrutiny entirely.
 			const grounded = this.signaturesSeen.some((sig) => message.includes(sig))
 			if (!grounded) {
-				risky = true
-				reason = `does not reference any confirmed signature (${this.signaturesSeen.join(", ") || "none yet"})`
+				this.ungroundedStrikes++
+				// Two-strike bound: a revision fails straight to human; two
+				// consecutive uncited fresh proposals mean the model is ignoring
+				// instructions — stop looping, a person decides (observed: three
+				// HOLD rounds of reworded proposals in one run).
+				const humanTime = isRevision || this.ungroundedStrikes >= 2
+				const kind = humanTime ? "ESCALATION" : "HOLD"
+				const guidance = humanTime
+					? "This has gone past automated review — escalating to the on-call engineer for a human decision."
+					: "Revise it against the confirmed signatures — PROPOSAL must cite at least one (REVISED PROPOSAL:)."
+				this.emit(kind, message,
+					`does not reference any confirmed signature (${this.signaturesSeen.join(", ") || "none yet"})`,
+					guidance)
+				return
 			}
+			// Grounded proposal/revision accepted: room is back in sync.
+			this.ungroundedStrikes = 0
+			return
 		}
-		if (!risky && !isRevision) {
-			// Safety net: prose heuristics for un-tokenized phrasings.
-			const impliesRestart = /restart|reboot/i.test(message)
-			const touchesInfra = /\b(pod|instance|service|node)s?\b/i.test(message)
-			const blanketRisk =
-				/restart all|roll\s?back|drop (the )?cache|delete data|migrate all/i.test(message)
-			const safePath = /staged|canary|gradual/i.test(message)
-			risky = !safePath && ((impliesRestart && touchesInfra) || blanketRisk)
-			if (risky) reason = "blast-radius action without prior sign-off"
-		}
-		if (!risky) return
 
-		this.lastChallenged = message
+		// Safety net: prose heuristics for un-tokenized phrasings (blast radius).
+		let risky = false
+		let reason = ""
+		const impliesRestart = /restart|reboot/i.test(message)
+		const touchesInfra = /\b(pod|instance|service|node)s?\b/i.test(message)
+		const blanketRisk =
+			/restart all|roll\s?back|drop (the )?cache|delete data|migrate all/i.test(message)
+		const safePath = /staged|canary|gradual/i.test(message)
+		risky = !safePath && ((impliesRestart && touchesInfra) || blanketRisk)
+		if (risky) this.emit("HOLD", message, "blast-radius action without prior sign-off",
+			"Revise it against the confirmed signatures — PROPOSAL must cite at least one (REVISED PROPOSAL:).")
+	}
 
-		// A failed REVISION is the room's second strike: escalate to the human
-		// on-call instead of looping on another HOLD (framework human-participant
-		// pattern — automation asks, a person decides).
-		const kind = isRevision ? "ESCALATION" : "HOLD"
-		const guidance = isRevision
-			? "This was already a revision — escalating to the on-call engineer for a human decision."
-			: "Revise it against the confirmed signatures — PROPOSAL must cite at least one (REVISED PROPOSAL:)."
+	private emit(kind: "HOLD" | "ESCALATION", source: string, reason: string, guidance: string) {
+		this.lastChallenged = source
 		const challenge = `${kind} — that proposal ${reason}. Confirmed evidence so far: ${this.signaturesSeen.join(", ") || "none yet"}. ${guidance}`
-		this.challenges.push(message)
-		console.log(`  [commander] ⚠ challenging: ${message.slice(0, 60)}…`)
+		this.challenges.push(source)
+		console.log(`  [commander] ⚠ challenging: ${source.slice(0, 60)}…`)
 		sendMessage(this.environment, `[commander] ${challenge}`, this)
 	}
 }
