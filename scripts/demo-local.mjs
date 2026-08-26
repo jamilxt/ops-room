@@ -17,6 +17,7 @@ const execFileAsync = promisify(execFile)
 
 const baseUrl = process.env.LLM_BASE_URL ?? "http://127.0.0.1:11434/v1"
 const registryName = "deepseek-v4-flash" // Mozaik registry name that routes through the generic OpenAI-compatible adapter
+const PREFERRED_SOURCES = ["qwen3:8b", "qwen2.5:7b", "llama3.1", "gemma4"] // best-quality-first candidates to alias
 const modelSource = process.env.MODEL_SOURCE // optional: which local model to alias
 let useLlm = true
 
@@ -51,8 +52,11 @@ if (serverType !== "ollama") {
 // 2. Ensure the alias exists (Ollama only). Uses the HTTP /api/copy endpoint
 //    so it works even without the `ollama` CLI on PATH.
 if (serverType === "ollama" && !localModels.some((n) => n === registryName || n.startsWith(`${registryName}:`))) {
-	// Pick a source model: explicit MODEL_SOURCE > largest chat model heuristically.
-	const source = modelSource ?? localModels[0]
+	// Preferred alias sources, best local quality first.
+	const source =
+		modelSource ??
+		PREFERRED_SOURCES.find((p) => localModels.some((n) => n === p || n.startsWith(`${p}:`))) ??
+		localModels[0]
 	if (!source) {
 		console.log(`[demo:local] no local models to alias — pull one:  ollama pull qwen2.5:7b`)
 	} else {

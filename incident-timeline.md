@@ -10,6 +10,6 @@
 - `T+14.0s [unknown] [sleuth] error signature: CHECKOUT_LOCK_ERROR in orders-api/src/main/ts/handler.ts — first seen right after deploy window opened`
 - `T+14.0s [unknown] [log] log: orders-api/src/main/ts/handler.ts:41 CHECKOUT_LOCK_ERROR lock contention on cart rows (x87)`
 - `T+20.0s [unknown] [alert] alert: checkout error rate 7.8% — page the on-call, recommend whether to restart all pods`
-- `T+20.9s [unknown] [commander] HOLD — that recommendation has blast radius. Impact vs the suspected signature we already have: propose the lowest-risk mitigation first`
+- `T+20.9s [unknown] [commander] HOLD — that recommendation has blast radius. Weigh it against the room's evidence ([sleuth] error signature: CHECKOUT_LOCK_ERROR in orders-api/src/main/ts/handler.ts — first seen right after deploy window opened) and propose the lowest-risk mitigation first`
 - `T+20.9s [unknown] [triage] recommendation: restart ALL orders-api pods immediately to clear the stuck connection pool`
 - `T+21.5s [unknown] [feed] timeline exhausted — incident is yours, team`

@@ -11,6 +11,7 @@ import { LogSleuth } from "./log-sleuth"
  */
 export class RiskCommander extends BaseParticipant {
 	readonly challenges: string[] = []
+	private latestSignature: string | null = null
 
 	constructor(private readonly environment: AgenticEnvironment) {
 		super()
@@ -20,7 +21,11 @@ export class RiskCommander extends BaseParticipant {
 
 	async onMessage(message: string): Promise<void> {
 		// We also receive feed messages; ignore everything except agent advice.
-		if (!message.startsWith("[triage]") && !message.startsWith("[sleuth]")) return
+		if (message.startsWith("[sleuth]")) {
+			this.latestSignature = message
+			return
+		}
+		if (!message.startsWith("[triage]")) return
 
 		// Risky only when unqualified — "staged/canary rollback" is the SAFE path.
 		// Stem-matched so verb forms ("restarting", "rebooted") also trigger;
@@ -34,13 +39,9 @@ export class RiskCommander extends BaseParticipant {
 		const risky = !safePath && ((impliesRestart && touchesInfra) || blanketRisk)
 		if (!risky) return
 
-		const challenge = `HOLD — that recommendation has blast radius. Impact vs the ${this.signaturesSeen()} signature we already have: propose the lowest-risk mitigation first`
+		const challenge = `HOLD — that recommendation has blast radius. Weigh it against the room's evidence (${this.latestSignature ?? "no signature yet"}) and propose the lowest-risk mitigation first`
 		this.challenges.push(message)
 		console.log(`  [commander] ⚠ challenging: ${message.slice(0, 60)}…`)
 		sendMessage(this.environment, `[commander] ${challenge}`, this)
-	}
-
-	private signaturesSeen(): string {
-		return this.challenges.length > 0 ? "known" : "suspected"
 	}
 }
