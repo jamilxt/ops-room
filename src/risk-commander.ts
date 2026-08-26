@@ -22,7 +22,10 @@ export class RiskCommander extends BaseParticipant {
 		// We also receive feed messages; ignore everything except agent advice.
 		if (!message.startsWith("[triage]") && !message.startsWith("[sleuth]")) return
 
-		const risky = /restart all|rollback|drop (the )?cache|delete data|migrate all/i.test(message)
+		// Risky only when unqualified — "staged/canary rollback" is the SAFE path.
+		const risky =
+			/restart all|rollback|drop (the )?cache|delete data|migrate all/i.test(message) &&
+			!/staged|canary|gradual/i.test(message)
 		if (!risky) return
 
 		const challenge = `HOLD — that recommendation has blast radius. Impact vs the ${this.signaturesSeen()} signature we already have: propose the lowest-risk mitigation first`

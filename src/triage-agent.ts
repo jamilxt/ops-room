@@ -2,9 +2,11 @@ import {
 	AgenticEnvironment,
 	BaseParticipant,
 	ModelContext,
+	ModelMessageItem,
 	UserMessageItem,
 	runInference,
 	sendMessage,
+	type ModelName,
 } from "@mozaik-ai/core"
 import type { IncidentFeed } from "./incident-feed"
 
@@ -36,12 +38,19 @@ export class TriageAgent extends BaseParticipant {
 
 		if (this.llm) {
 			this.context.addContextItem(UserMessageItem.create(message))
+			// deepseek-v4-flash routes through the generic OpenAI-compatible
+			// endpoint, so OPENAI_BASE_URL can point at Ollama / LM Studio /
+			// llama.cpp server — any /v1/chat/completions server works.
+			const model = (process.env.LLM_MODEL as ModelName) ?? "deepseek-v4-flash"
 			runInference({
-				model: "gpt-5.4",
+				model,
 				context: this.context,
 				caller: this,
 				environment: this.environment,
-				streaming: true,
+				// Note: Mozaik 3.14's chat-completions *streaming* path yields raw
+				// SSE chunks the runtime drops; non-streaming still runs fully
+				// concurrent (fire-and-forget) and returns proper context items.
+				streaming: process.env.LLM_STREAMING === "true",
 			})
 			return
 		}
@@ -58,6 +67,16 @@ export class TriageAgent extends BaseParticipant {
 			sendMessage(this.environment, `[triage] ${hypothesis}`, this)
 			this.log(`${risky ? "recommendation" : "hypothesis"} emitted`)
 		}, 900)
+	}
+
+	// Relay the model's finished answer back onto the environment so the
+	// commander (and the scribe) can react to it — same pattern the human
+	// specialist would follow: hear telemetry, think, speak findings aloud.
+	async onModelMessage(item: ModelMessageItem): Promise<void> {
+		this.context.addContextItem(item)
+		const text = item.content.text?.trim()
+		if (!text) return
+		sendMessage(this.environment, `[triage] ${text}`, this)
 	}
 
 	private log(line: string): void {
