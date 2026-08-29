@@ -86,7 +86,10 @@ export function runScenario(options: ScenarioOptions = {}, hooks: ScenarioHooks 
 	return new Promise((resolve) => {
 		const say = hooks.onLine ?? ((line: string) => console.log(line))
 		const environment = new AgenticEnvironment()
-		const llm = Boolean(process.env.OPENAI_API_KEY)
+		// LLM mode engages when a real model credential is present. Gemini is
+		// the exception: Mozaik's Gemini endpoint reads GEMINI_API_KEY, not
+		// OPENAI_API_KEY, so either variable qualifies.
+		const llm = Boolean(process.env.OPENAI_API_KEY ?? process.env.GEMINI_API_KEY)
 
 		const feed = new IncidentFeed(environment, timeline)
 		const triage = new TriageAgent(environment, llm)
