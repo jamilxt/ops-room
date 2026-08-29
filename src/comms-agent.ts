@@ -1,4 +1,4 @@
-import { AgenticEnvironment, BaseParticipant, DeveloperMessageItem, ModelContext, ModelMessageItem, UserMessageItem, runInference, sendMessage, type ModelName } from "@mozaik-ai/core"
+import { AgenticEnvironment, AgenticError, BaseParticipant, DeveloperMessageItem, ModelContext, ModelMessageItem, UserMessageItem, runInference, sendMessage, type ModelName } from "@mozaik-ai/core"
 
 /**
  * CommsAgent is the incident communications lead. It listens to the whole
@@ -29,6 +29,13 @@ NEXT STEPS (internal): at most 3 bullets, each one concrete action with owner ro
 Be factual. Use only facts from the transcript you were given.`,
 			),
 		)
+	}
+
+	// Comms publishes last — if its inference throws, the run ends without a
+	// status update and nobody sees why. Say it out loud before going quiet.
+	// (Framework marks the participant inactive after onError: docs/error-handling.)
+	onError(error: AgenticError): void {
+		sendMessage(this.environment, `[comms] WARNING: comms lead hit an error before publishing — ${error.message}`, this)
 	}
 
 	async onMessage(message: string): Promise<void> {

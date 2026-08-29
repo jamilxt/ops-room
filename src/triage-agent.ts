@@ -1,5 +1,6 @@
 import {
 	AgenticEnvironment,
+	AgenticError,
 	BaseParticipant,
 	DeveloperMessageItem,
 	ModelContext,
@@ -40,6 +41,12 @@ Rules:
 - Never give generic advice or explain what a metric means — the room already knows.`,
 			),
 		)
+	}
+
+	// Framework rule: a handler that throws marks the participant inactive —
+	// triage would silently vanish from the room mid-incident. Make it loud.
+	onError(error: AgenticError): void {
+		sendMessage(this.environment, `[triage] WARNING: triage specialist hit an error and went silent — ${error.message}`, this)
 	}
 
 	async onMessage(message: string): Promise<void> {

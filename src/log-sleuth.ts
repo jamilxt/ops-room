@@ -1,6 +1,6 @@
 import fs from "node:fs"
 import path from "node:path"
-import { AgenticEnvironment, BaseParticipant, DeveloperMessageItem, executeFunctionCall, FunctionCallItem, FunctionCallOutputItem, ModelContext, ModelMessageItem, UserMessageItem, runInference, sendMessage, type ModelName, type Tool } from "@mozaik-ai/core"
+import { AgenticEnvironment, AgenticError, BaseParticipant, DeveloperMessageItem, executeFunctionCall, FunctionCallItem, FunctionCallOutputItem, ModelContext, ModelMessageItem, UserMessageItem, runInference, sendMessage, type ModelName, type Tool } from "@mozaik-ai/core"
 
 /**
  * LogSleuth — the log analyst.
@@ -70,6 +70,14 @@ export class LogSleuth extends BaseParticipant {
 		this.context.addContextItem(DeveloperMessageItem.create(DEVELOPER_PROMPT))
 	}
 
+	// A thrown handler would mark this participant INACTIVE (framework rule:
+	// docs/error-handling) — the sleuth would silently stop receiving events
+	// while the room continues. Announce failures on the bus instead, so a
+	// dead analyst is a loud fact, never a silent gap.
+	onError(error: AgenticError): void {
+		sendMessage(this.environment, `[sleuth] WARNING: log analyst hit an error and went silent — ${error.message}`, this)
+	}
+
 	async onMessage(message: string): Promise<void> {
 		// React to live telemetry (alerts + raw logs), never twice to the same row.
 		const reacts = message.startsWith("[alert]") || message.startsWith("[log]")
@@ -115,7 +123,7 @@ export class LogSleuth extends BaseParticipant {
 		this.pendingCalls.add(item.callId)
 		this.context.addContextItem(item)
 		const tool = sleuthTools.find((t) => t.name === item.name)
-		if (!tool) throw new Error(`unknown tool: ${item.name}`)
+		if (!tool) throw new Error(`unknown tool: ${item.name} (model hallucinated a tool name)`)
 		executeFunctionCall(this.environment, item, tool, this)
 	}
 
