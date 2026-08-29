@@ -95,8 +95,9 @@ Rules:
 				caller: this,
 				environment: this.environment,
 				// Note: Mozaik 3.14's chat-completions *streaming* path yields raw
-				// SSE chunks the runtime drops; non-streaming still runs fully
-				// concurrent (fire-and-forget) and returns proper context items.
+				// provider chunks and never assembles them into ModelMessageItem /
+				// FunctionCallItems, so no handler fires; non-streaming still runs
+				// fully concurrent (fire-and-forget) and returns proper context items.
 				streaming: process.env.LLM_STREAMING === "true",
 			})
 			return

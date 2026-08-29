@@ -111,7 +111,7 @@ scripts/
 
 ## Design notes
 
-- **Streaming is off by default.** Not an omission: Mozaik 3.14's SSE delivery drops semantic events end-to-end (reproduced and documented). OpsRoom uses single-shot inference; nothing in the demo needs token streaming.
+- **Streaming is off by default.** Not an omission: on Mozaik 3.14's chat-completions endpoint, streaming delivers raw provider chunks (`chat.completion.chunk`) but never assembles the completed `ModelMessageItem` or `FunctionCallItem`s, so `onModelMessage`/`onFunctionCall` never fire (verified against the installed 3.14.0 with an A/B repro; the items-plus-events contract in the docs only holds on the Responses endpoint). OpsRoom uses single-shot inference, which still runs fully concurrent; nothing in the demo needs token streaming.
 - **Interception is a contract, not vibes.** Agents speak `PROPOSAL:` / `REVISED PROPOSAL:` tokens so the commander's grounding gate fires deterministically even when the LLM paraphrases. Tokens must open their own statement; revisions are gated like fresh proposals; two consecutive ungrounded rows escalate to the human instead of looping.
 - **A human has the last word.** When a revised proposal still cites no evidence, the commander ESCALATES and the on-call engineer decides — at the keyboard (`OPSROOM_ONCALL=interactive npm start`) or with buttons in the web console.
 - **One engine, two frontends.** `scenario.ts` drives both the CLI and the web console — same bus, same participants, same evidence gates; only the output sink differs. The scenario speaks Java/Spring (Hikari, Actuator, JPA locks) while keeping machine tags and error codes stable, so the negotiating agents don't care and Java-fluent humans do.
