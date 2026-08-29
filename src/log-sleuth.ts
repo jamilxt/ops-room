@@ -1,6 +1,7 @@
 import fs from "node:fs"
 import path from "node:path"
 import { AgenticEnvironment, AgenticError, BaseParticipant, DeveloperMessageItem, executeFunctionCall, FunctionCallItem, FunctionCallOutputItem, ModelContext, ModelMessageItem, UserMessageItem, runInference, sendMessage, type ModelName, type Tool } from "@mozaik-ai/core"
+import { defaultModelName } from "./model-default.js"
 
 /**
  * LogSleuth — the log analyst.
@@ -18,7 +19,7 @@ import { AgenticEnvironment, AgenticError, BaseParticipant, DeveloperMessageItem
 
 // Demo fixtures live here; only files inside are searchable.
 const FIXTURE_DIR = path.resolve("fixtures")
-const registryName = process.env.LLM_MODEL ?? "deepseek-v4-flash"
+const registryName = defaultModelName()
 
 /** Shared grep over fixtures/. Returns a match-count report. */
 function searchFixture(file: string, pattern: string): string {

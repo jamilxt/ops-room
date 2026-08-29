@@ -1,4 +1,5 @@
 import { AgenticEnvironment, AgenticError, BaseParticipant, DeveloperMessageItem, ModelContext, ModelMessageItem, UserMessageItem, runInference, sendMessage, type ModelName } from "@mozaik-ai/core"
+import { defaultModelName } from "./model-default.js"
 
 /**
  * CommsAgent is the incident communications lead. It listens to the whole
@@ -57,7 +58,7 @@ Be factual. Use only facts from the transcript you were given.`,
 			console.log(`  [comms] deterministic status update published (${sigs} signatures observed)`)
 			return
 		}
-		const model = (process.env.LLM_MODEL as ModelName) ?? "deepseek-v4-flash"
+		const model = defaultModelName() as ModelName
 		runInference({
 			model,
 			context: this.context,

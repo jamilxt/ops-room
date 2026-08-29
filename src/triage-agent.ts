@@ -11,6 +11,7 @@ import {
 	type ModelName,
 } from "@mozaik-ai/core"
 import type { IncidentFeed } from "./incident-feed"
+import { defaultModelName } from "./model-default.js"
 
 /**
  * TriageAgent reacts to alerts and metrics from the feed.
@@ -72,7 +73,7 @@ Rules:
 			// LLM path: re-infer with the challenge in context — the negotiation
 			// loop, end to end.
 			this.context.addContextItem(UserMessageItem.create(message))
-			const model = (process.env.LLM_MODEL as ModelName) ?? "deepseek-v4-flash"
+			const model = defaultModelName() as ModelName
 			runInference({ model, context: this.context, caller: this, environment: this.environment, streaming: false })
 			return
 		}
@@ -95,7 +96,7 @@ Rules:
 			// deepseek-v4-flash routes through the generic OpenAI-compatible
 			// endpoint, so OPENAI_BASE_URL can point at Ollama / LM Studio /
 			// llama.cpp server — any /v1/chat/completions server works.
-			const model = (process.env.LLM_MODEL as ModelName) ?? "deepseek-v4-flash"
+			const model = defaultModelName() as ModelName
 			runInference({
 				model,
 				context: this.context,
