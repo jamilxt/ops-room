@@ -53,9 +53,19 @@ Slack-style `#incident-war-room` rendering the live run in your browser: agent r
 
 CLI stays fully functional (same engine, same behavior):
 
-No API key needed — the demo runs fully deterministic. For real LLM inference, **any OpenAI-compatible endpoint works** (the `deepseek-v4-flash` registry entry routes through the generic `/v1/chat/completions` adapter): OpenAI, DeepSeek, OpenRouter, **Ollama, LM Studio, llama.cpp server** — local or remote.
+No API key needed — the demo runs fully deterministic. For real LLM inference, set `LLM_MODEL` to any Mozaik registry name and provide a matching credential. **Verified path: OpenAI cloud (`gpt-5.4-mini`)** — the `gpt-*` registry names route through Mozaik's native OpenAI adapter. Other OpenAI-compatible endpoints (DeepSeek, OpenRouter, Ollama, LM Studio, llama.cpp) work through the generic `/v1/chat/completions` adapter via the `deepseek-v4-flash` registry entry.
 
-### Option A — local LLM (no cloud key, free)
+### Option A — OpenAI cloud (verified)
+
+```bash
+export OPENAI_API_KEY=sk-...   # your key
+export LLM_MODEL=gpt-5.4-mini  # or gpt-5.4-nano (cheaper)
+npm start                      # or: npm run web
+```
+
+Costs about one cent per run at `gpt-5.4-mini` pricing (a run is 8-12 small calls). Streaming stays off; single-shot inference keeps the room fully concurrent.
+
+### Option B — local LLM (no cloud key, free)
 
 ```bash
 # 1. Start any OpenAI-compatible local server on your Mac.
@@ -72,13 +82,13 @@ LLM_BASE_URL=http://127.0.0.1:1234/v1 npm run demo:local
 
 > The model name sent to the server is `deepseek-v4-flash` (one of Mozaik's 12 registry names). Most local servers ignore unknown model names and serve their loaded model; if yours is strict (LM Studio with a specific model loaded), alias the name in the server, or set `LLM_MODEL` to a registry name and map it server-side. For LM Studio, simplest: load `qwen2.5-coder-7b-instruct` and it will serve it for any requested model.
 
-### Option B — cloud provider
+### Option C — other cloud providers
 
 ```bash
-export OPENAI_API_KEY=sk-...            # real OpenAI
-# or DeepSeek:
-export OPENAI_API_KEY=sk-...            # your DeepSeek key
+# DeepSeek (generic OpenAI-compatible adapter):
+export OPENAI_API_KEY=sk-...
 export OPENAI_BASE_URL=https://api.deepseek.com/v1
+export LLM_MODEL=deepseek-v4-flash
 npm start
 ```
 

@@ -339,7 +339,7 @@ function handler(req: IncomingMessage, res: ServerResponse): void {
 		const firstTab = !startedOnce && !busy
 		broadcast({
 			type: "hello",
-			mode: process.env.OPENAI_API_KEY ? "LLM mode (Ollama/OpenAI-compatible)" : "deterministic demo",
+			mode: process.env.OPENAI_API_KEY || process.env.GEMINI_API_KEY ? "LLM mode" : "deterministic demo",
 		})
 		if (firstTab) void startRun()
 		req.on("close", () => {

@@ -42,7 +42,7 @@
 
 <header>
   <div class="title-row"><div class="pulse"></div><h1>OpsRoom — concurrent incident response</h1></div>
-  <p class="sub">six participants · one shared bus · zero orchestrators — built on the Mozaik AgenticEnvironment, LLM via local Ollama (qwen3:8b)</p>
+  <p class="sub">six participants · one shared bus · zero orchestrators — built on the Mozaik AgenticEnvironment, real LLM inference (OpenAI gpt-5.4-mini verified)</p>
 </header>
 
 <div class="card-frame">
@@ -117,13 +117,13 @@
   <text x="800" y="226" text-anchor="middle" fill="#94a3b8" font-size="8.5">extracts error signatures</text>
   <text x="800" y="246" text-anchor="middle" fill="#67e8f9" font-size="8">TIMEOUT_ERROR · CHECKOUT_LOCK_ERROR</text>
 
-  <!-- Ollama -->
+  <!-- LLM endpoint -->
   <rect x="970" y="142" width="200" height="112" rx="6" fill="#0f172a"/>
   <rect x="970" y="142" width="200" height="112" rx="6" fill="rgba(76,29,149,0.35)" stroke="#a78bfa" stroke-width="1.5"/>
-  <text x="1070" y="172" text-anchor="middle" fill="#e2e8f0" font-size="12" font-weight="700">Ollama · qwen3:8b</text>
-  <text x="1070" y="192" text-anchor="middle" fill="#94a3b8" font-size="8.5">local OpenAI-compatible endpoint</text>
-  <text x="1070" y="208" text-anchor="middle" fill="#94a3b8" font-size="8.5">127.0.0.1:11434/v1</text>
-  <text x="1070" y="228" text-anchor="middle" fill="#c4b5fd" font-size="8">zero cloud keys · fully offline capable</text>
+  <text x="1070" y="172" text-anchor="middle" fill="#e2e8f0" font-size="12" font-weight="700">OpenAI · gpt-5.4-mini</text>
+  <text x="1070" y="192" text-anchor="middle" fill="#94a3b8" font-size="8.5">Mozaik's native OpenAI adapter</text>
+  <text x="1070" y="208" text-anchor="middle" fill="#94a3b8" font-size="8.5">api.openai.com/v1 · single-shot, no streaming</text>
+  <text x="1070" y="228" text-anchor="middle" fill="#c4b5fd" font-size="8">any OpenAI-compatible endpoint works · deterministic zero-key mode as fallback</text>
 
   <!-- ===== bottom row ===== -->
   <!-- RiskCommander -->
@@ -193,10 +193,10 @@
     </ul>
   </div>
   <div class="card">
-    <div class="card-header"><div class="card-dot violet"></div><h3>Local-first stack</h3></div>
+    <div class="card-header"><div class="card-dot violet"></div><h3>Swappable LLM stack</h3></div>
     <ul>
-      <li>• Runs fully offline: Ollama qwen3:8b on a MacBook Pro, no API keys</li>
-      <li>• Any OpenAI-compatible endpoint works — LM Studio, llama.cpp, cloud</li>
+      <li>• Verified end to end: OpenAI gpt-5.4-mini (~1 cent per run)</li>
+      <li>• Any OpenAI-compatible endpoint works — Ollama, LM Studio, llama.cpp, DeepSeek</li>
       <li>• Deterministic zero-key mode always available as fallback</li>
     </ul>
   </div>
