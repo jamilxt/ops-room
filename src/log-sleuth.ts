@@ -18,7 +18,7 @@ import { AgenticEnvironment, AgenticError, BaseParticipant, DeveloperMessageItem
 
 // Demo fixtures live here; only files inside are searchable.
 const FIXTURE_DIR = path.resolve("fixtures")
-const registryName = "deepseek-v4-flash"
+const registryName = process.env.LLM_MODEL ?? "deepseek-v4-flash"
 
 /** Shared grep over fixtures/. Returns a match-count report. */
 function searchFixture(file: string, pattern: string): string {
