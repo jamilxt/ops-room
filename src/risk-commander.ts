@@ -1,6 +1,7 @@
 import { AgenticEnvironment, BaseParticipant, sendMessage } from "@mozaik-ai/core"
 import { TriageAgent } from "./triage-agent"
 import { LogSleuth } from "./log-sleuth"
+import { parseProposalLine } from "./proposal-protocol"
 
 /** Mozaik doesn't export this type; mirror its shape for admitListener(). */
 type ListenerCtor = new (...args: any[]) => import("@mozaik-ai/core").Participant
@@ -46,6 +47,26 @@ export class RiskCommander extends BaseParticipant {
 		console.log(`  [commander] listen scope expanded: now also watching ${listener.name}`)
 	}
 
+	/** Room goal state — set by the commander's own typed-event absorption. */
+	private evidenceFirstGoal = false
+
+	/**
+	 * ADAPTABILITY TO SYSTEM GOALS: the commander doesn't just relay the
+	 * pivot — it ENFORCES it. Once the preserve-evidence goal lands, the
+	 * structured gate rejects any non-readonly state-changing proposal until
+	 * the room captures evidence first. Policy, not prose.
+	 */
+	async onExternalEvent(
+		_source: import("@mozaik-ai/core").Participant,
+		item: import("@mozaik-ai/core").SemanticEvent<unknown>,
+	): Promise<void> {
+		if (item.getType() !== "goal-update") return
+		const data = item.data as { goal?: string }
+		if (data.goal !== "preserve-evidence") return
+		this.evidenceFirstGoal = true
+		sendMessage(this.environment, "[commander] goal absorbed: evidence-first is now ENFORCED — state-changing proposals without readonly capture lead will be held.", this)
+	}
+
 	async onMessage(message: string): Promise<void> {
 		// We also receive feed messages; ignore everything except agent advice.
 		// Listen scope covers BOTH specialists and any admitted late joiner
@@ -63,12 +84,47 @@ export class RiskCommander extends BaseParticipant {
 		// (protects against renegotiation ping-pong).
 		if (message === this.lastChallenged) return
 
-		// Contract tokens: strip the routing prefix, then require the token to
-		// open its own statement — start of message, a new line, or a sentence
-		// boundary ("...contention. PROPOSAL: ..."). A bare space is NOT a
-		// boundary, so "REVISED PROPOSAL:" can never masquerade as a plain
-		// proposal. Models under pressure cram everything onto one line;
-		// newline-only anchoring let them dodge the gate (observed 2026-09).
+		// STRUCTURED v2 GATE (primary): canonical proposal lines carry typed
+		// fields — gate on those. A proposal is blocked when:
+		//   - it cites NO confirmed signature (grounding), or
+		//   - blastRadius is "broad" (fleet-wide / data-touching), or
+		//   - the room's goal is evidence-first and the proposal is NOT
+		//     readonly-capture-first while proposing a state change.
+		const structured = parseProposalLine(message)
+		if (structured) {
+			const { proposal } = structured
+			const grounded = proposal.cites.some((c) => this.signaturesSeen.includes(c))
+			if (!grounded) {
+				this.ungroundedStrikes++
+				const humanTime = proposal.kind === "REVISED PROPOSAL" || this.ungroundedStrikes >= 2
+				this.emit(
+					humanTime ? "ESCALATION" : "HOLD",
+					message,
+					`cites [${proposal.cites.join(", ") || "no signatures"}] but confirmed evidence is (${this.signaturesSeen.join(", ") || "none yet"})`,
+					humanTime
+						? "This has gone past automated review — escalating to the on-call engineer for a human decision."
+						: "Re-submit citing at least one confirmed signature.",
+				)
+				return
+			}
+			if (proposal.blastRadius === "broad") {
+				this.emit("HOLD", message, "declares blastRadius: broad (fleet-wide / data-touching)",
+					"Re-submit with a targeted or readonly lever (canary scope, pool resize, lock retry).")
+				return
+			}
+			if (this.evidenceFirstGoal && !proposal.evidenceFirst && proposal.blastRadius !== "readonly") {
+				this.emit("HOLD", message, "proposes a state change while the room's goal is evidence-first",
+					"Capture readonly evidence first (snapshot) and set evidenceFirst: true, then re-propose.")
+				return
+			}
+			// Structured + grounded + scoped: accepted, room back in sync.
+			this.ungroundedStrikes = 0
+			return
+		}
+
+		// V1 PROSE NET (safety net): free-text "PROPOSAL:" lines from any
+		// source that did not go through the typed contract (healer v1 lines,
+		// structured-path fallback when a provider ignores the schema).
 		const body = message.replace(/^\[(triage|healer)\]\s*/, "")
 		const OPEN = "(^|\\n|[.!?]\\s)"
 		const isRevision = new RegExp(`${OPEN}REVISED PROPOSAL:`).test(body)

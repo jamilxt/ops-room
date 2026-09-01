@@ -12,6 +12,7 @@ import {
 } from "@mozaik-ai/core"
 import type { IncidentFeed } from "./incident-feed"
 import { defaultModelName } from "./model-default.js"
+import { PROPOSAL_SCHEMA, normalizeProposal, renderProposalLine } from "./proposal-protocol"
 
 /**
  * TriageAgent reacts to alerts and metrics from the feed.
@@ -29,17 +30,19 @@ export class TriageAgent extends BaseParticipant {
 		private readonly llm: boolean,
 	) {
 		super()
-		// Role + format contract: short, incident-specific, ends with one action.
+		// Role + format contract: short, incident-specific, structured replies.
 		this.context.addContextItem(
 			DeveloperMessageItem.create(
-				`You are the triage specialist in a live incident war room. Telemetry arrives in real time; other agents (log analyst, risk commander) are working the same incident in parallel.
-Rules:
-- Reply in at most 3 short sentences. No markdown, no headings, no lists.
-- Name the most likely root cause, referencing the specific service/metric/error you were given.
-- When you propose a mitigation, you MUST start that sentence with "PROPOSAL:" — this is a protocol token, the risk commander intercepts on it. Never use the word "restart" or "rollback" anywhere else.
-- End with exactly one concrete next action, prefixed "ACTION:".
-- If you receive a message containing "HOLD", your last proposal was challenged: reply with exactly one new sentence starting "REVISED PROPOSAL:" offering the least-blast-radius mitigation for the confirmed signatures (canary rollback, pool resize, or targeted lock retry — never all-pods).
-- Never give generic advice or explain what a metric means — the room already knows.`,
+				`You are the triage specialist in a live incident war room. Telemetry arrives in real time; other agents (log analyst, database healer, risk commander) are working the same incident in parallel.
+Output contract: ALWAYS reply with the proposal JSON object (schema provided). Field rules:
+- kind: "HYPOTHESIS" when you only report an observation; "PROPOSAL" for a new mitigation; "REVISED PROPOSAL" when answering a HOLD.
+- rootCause: one clause, naming the specific service/metric/error.
+- action: exactly one concrete sentence. Never generic advice.
+- blastRadius: "readonly" (captures evidence, changes nothing), "targeted" (specific pods/rows/paths), or "broad" (fleet-wide restarts, migrations — these WILL be challenged).
+- cites: error-code signatures grounding the mitigation (e.g. ["CHECKOUT_LOCK_ERROR"]). Empty ONLY for HYPOTHESIS; mitigation proposals without cites are held by the risk commander.
+- evidenceFirst: true when the action captures readonly evidence before any state change.
+- If your last proposal was challenged (HOLD), offer the least-blast-radius mitigation against the confirmed signatures.
+- Never use the word "restart" or "rollback" outside a proposal's action field.`,
 			),
 		)
 	}
@@ -126,7 +129,14 @@ Rules:
 			// loop, end to end.
 			this.context.addContextItem(UserMessageItem.create(message))
 			const model = defaultModelName() as ModelName
-			runInference({ model, context: this.context, caller: this, environment: this.environment, streaming: false })
+			runInference({
+				model,
+				context: this.context,
+				caller: this,
+				environment: this.environment,
+				structuredOutput: PROPOSAL_SCHEMA,
+				streaming: false,
+			})
 			return
 		}
 		if (!message.startsWith("[alert]") && !message.startsWith("[metric]")) return
@@ -154,11 +164,16 @@ Rules:
 				context: this.context,
 				caller: this,
 				environment: this.environment,
+				// STRUCTURED v2: every triage reply is a typed proposal object
+				// (see proposal-protocol.ts). onModelMessage parses + renders
+				// the canonical line; prose fallback only if the provider
+				// ignores the schema.
+				structuredOutput: PROPOSAL_SCHEMA,
 				// Note: Mozaik 3.14's chat-completions *streaming* path yields raw
 				// provider chunks and never assembles them into ModelMessageItem /
 				// FunctionCallItems, so no handler fires; non-streaming still runs
 				// fully concurrent (fire-and-forget) and returns proper context items.
-				streaming: process.env.LLM_STREAMING === "true",
+				streaming: false,
 			})
 			return
 		}
@@ -189,12 +204,34 @@ Rules:
 	}
 
 	// Relay the model's finished answer back onto the environment so the
-	// commander (and the scribe) can react to it — same pattern the human
-	// specialist would follow: hear telemetry, think, speak findings aloud.
+	// commander (and the scribe) can react to it.
+	//
+	// STRUCTURED PATH (primary): the inference ran with the proposal
+	// json_schema, so item.content.text is model-authored JSON — parse it,
+	// then publish the CANONICAL field-based line. The commander gates on
+	// fields (cites/blastRadius), not on prose patterns.
+	// FALLBACK NET: if JSON parsing fails (provider ignored the schema),
+	// relay the raw text — the commander's v1 prose net still catches it.
 	async onModelMessage(item: ModelMessageItem): Promise<void> {
 		this.context.addContextItem(item)
 		const text = item.content.text?.trim()
 		if (!text) return
+		try {
+			const parsed = normalizeProposal(JSON.parse(text))
+			if (parsed) {
+				if (parsed.kind === "HYPOTHESIS") {
+					sendMessage(this.environment, `[triage] hypothesis: ${parsed.action}`, this)
+				} else {
+					// Evidence-first goal: enforce at the source, not just in prose.
+					if (this.evidenceFirst) parsed.evidenceFirst = true
+					sendMessage(this.environment, renderProposalLine("triage", parsed), this)
+				}
+				this.log(`structured ${parsed.kind.toLowerCase()} published (blastRadius: ${parsed.blastRadius}, cites: ${parsed.cites.join(", ") || "none"})`)
+				return
+			}
+		} catch {
+			// Not JSON — fall through to the prose net.
+		}
 		sendMessage(this.environment, `[triage] ${text}`, this)
 	}
 
