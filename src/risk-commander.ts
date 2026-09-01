@@ -2,6 +2,9 @@ import { AgenticEnvironment, BaseParticipant, sendMessage } from "@mozaik-ai/cor
 import { TriageAgent } from "./triage-agent"
 import { LogSleuth } from "./log-sleuth"
 
+/** Mozaik doesn't export this type; mirror its shape for admitListener(). */
+type ListenerCtor = new (...args: any[]) => import("@mozaik-ai/core").Participant
+
 /**
  * RiskCommander is the interception showcase: it watches recommendations
  * flowing from the specialist agents and — without any orchestrator telling
@@ -25,19 +28,36 @@ export class RiskCommander extends BaseParticipant {
 
 	constructor(private readonly environment: AgenticEnvironment) {
 		super()
-		// Commander only reacts to the specialist agents.
+		// Commander only reacts to the specialist agents — UNTIL a newcomer
+		// proves relevant. admitListener() expands this AT RUNTIME when a
+		// late-joining agent announces proposal-emitting capabilities: the
+		// commander adapts to participants instead of hardcoding them.
 		this.listens = [TriageAgent, LogSleuth]
+	}
+
+	/**
+	 * Runtime roster adaptation: route a newly discovered participant's
+	 * messages into the commander's interception scope. Called by the
+	 * scenario when the DatabaseHealer joins mid-incident.
+	 */
+	admitListener(listener: ListenerCtor): void {
+		if (this.listens.some((l) => l === listener)) return
+		this.listens = [...this.listens, listener]
+		console.log(`  [commander] listen scope expanded: now also watching ${listener.name}`)
 	}
 
 	async onMessage(message: string): Promise<void> {
 		// We also receive feed messages; ignore everything except agent advice.
-		if (message.startsWith("[sleuth]")) {
+		// Listen scope covers BOTH specialists and any admitted late joiner
+		// (e.g. DatabaseHealer): their proposals face the same evidence gate.
+		const source = message.match(/^\[(\w+)\]/)?.[1]
+		if (source === "sleuth") {
 			this.latestSignature = message
-			const code = message.match(/[A-Z0-9_]{4,}ERROR[A-Z0-9_]*/)?.[0]
+			const code = message.match(/[A-Z0-9_]+_ERROR/)?.[0]
 			if (code && !this.signaturesSeen.includes(code)) this.signaturesSeen.push(code)
 			return
 		}
-		if (!message.startsWith("[triage]")) return
+		if (source !== "triage" && source !== "healer") return
 
 		// Identical-message dedupe: never challenge the same text twice
 		// (protects against renegotiation ping-pong).
@@ -49,7 +69,7 @@ export class RiskCommander extends BaseParticipant {
 		// boundary, so "REVISED PROPOSAL:" can never masquerade as a plain
 		// proposal. Models under pressure cram everything onto one line;
 		// newline-only anchoring let them dodge the gate (observed 2026-09).
-		const body = message.replace(/^\[triage\]\s*/, "")
+		const body = message.replace(/^\[(triage|healer)\]\s*/, "")
 		const OPEN = "(^|\\n|[.!?]\\s)"
 		const isRevision = new RegExp(`${OPEN}REVISED PROPOSAL:`).test(body)
 		const isProposal = !isRevision && new RegExp(`${OPEN}PROPOSAL:`).test(body)
@@ -94,7 +114,11 @@ export class RiskCommander extends BaseParticipant {
 
 	private emit(kind: "HOLD" | "ESCALATION", source: string, reason: string, guidance: string) {
 		this.lastChallenged = source
-		const challenge = `${kind} — that proposal ${reason}. Confirmed evidence so far: ${this.signaturesSeen.join(", ") || "none yet"}. ${guidance}`
+		// Address the offender by its routing tag: the room is concurrent —
+		// without a named target, OTHER agents mistake the challenge for one
+		// aimed at them and re-revise their own (already accepted) proposals.
+		const offender = source.match(/^\[(\w+)\]/)?.[1] ?? "agent"
+		const challenge = `${kind} @${offender} — that proposal ${reason}. Confirmed evidence so far: ${this.signaturesSeen.join(", ") || "none yet"}. ${guidance}`
 		this.challenges.push(source)
 		console.log(`  [commander] ⚠ challenging: ${source.slice(0, 60)}…`)
 		sendMessage(this.environment, `[commander] ${challenge}`, this)

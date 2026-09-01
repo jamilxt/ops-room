@@ -7,6 +7,9 @@ import { RiskCommander } from "./risk-commander"
 import { IncidentScribe } from "./incident-scribe"
 import { CommsAgent } from "./comms-agent"
 import { OnCallEngineer } from "./oncall-engineer"
+import { DatabaseHealer } from "./database-healer"
+import { TriageAgent as TriageAgentClass } from "./triage-agent"
+import type { Participant } from "@mozaik-ai/core"
 
 /**
  * Shared scenario engine: builds a FRESH environment + all seven participants
@@ -113,6 +116,12 @@ export function runScenario(options: ScenarioOptions = {}, hooks: ScenarioHooks 
 			options.interactive ?? false,
 			hooks.askHuman ?? cliAsk,
 		)
+		// The late joiner: NOT on the original roster. Joins mid-scenario,
+		// right after the lock-contention log lands — see joinHealerAt.
+		const healer = new DatabaseHealer(environment)
+		// Lock-contention log row index (0-based): the [log] CHECKOUT_LOCK_ERROR
+		// timeline entry. The healer joins after this row publishes.
+		const joinHealerAt = 4
 
 		feed.join(environment)
 		triage.join(environment)
@@ -121,6 +130,17 @@ export function runScenario(options: ScenarioOptions = {}, hooks: ScenarioHooks 
 		scribe.join(environment)
 		comms.join(environment)
 		oncall.join(environment)
+
+		// Runtime participant discovery: every agent greets the stranger when
+		// it appears (onParticipantJoined), the healer announces capabilities
+		// (onJoined) — and the commander expands its listen scope so it can
+		// intercept even the newcomer's proposals. Pure bus dynamics: no
+		// coordinator, no restart, no changes to any original agent's wiring.
+		setTimeout(() => {
+			healer.join(environment)
+			commander.admitListener(DatabaseHealer)
+			say(`  [roster] DatabaseHealer joined mid-incident — room notified via onParticipantJoined`)
+		}, timeline.slice(0, joinHealerAt + 1).reduce((acc, e) => acc + e.delayMs, 0) + 300)
 
 		say(`=== OpsRoom — concurrent incident response${llm ? " (LLM mode)" : " (deterministic demo)"} ===\n`)
 		feed.replay()

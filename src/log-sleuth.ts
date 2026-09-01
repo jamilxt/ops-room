@@ -2,6 +2,7 @@ import fs from "node:fs"
 import path from "node:path"
 import { AgenticEnvironment, AgenticError, BaseParticipant, DeveloperMessageItem, executeFunctionCall, FunctionCallItem, FunctionCallOutputItem, ModelContext, ModelMessageItem, UserMessageItem, runInference, sendMessage, type ModelName, type Tool } from "@mozaik-ai/core"
 import { defaultModelName } from "./model-default.js"
+import { searchFixture } from "./fixture-search"
 
 /**
  * LogSleuth — the log analyst.
@@ -17,23 +18,9 @@ import { defaultModelName } from "./model-default.js"
  *   - Deterministic mode (no OPENAI_API_KEY): path 1 only.
  */
 
-// Demo fixtures live here; only files inside are searchable.
-const FIXTURE_DIR = path.resolve("fixtures")
 const registryName = defaultModelName()
 
-/** Shared grep over fixtures/. Returns a match-count report. */
-function searchFixture(file: string, pattern: string): string {
-	const safe = path.basename(file) // flatten any traversal attempt
-	const full = path.join(FIXTURE_DIR, safe)
-	if (!fs.existsSync(full)) return `no such log file: ${file}`
-	const hits = fs
-		.readFileSync(full, "utf8")
-		.split("\n")
-		.filter((l) => l.toLowerCase().includes(pattern.toLowerCase()))
-	return hits.length === 0
-		? `0 matches for "${pattern}" in ${file}`
-		: `${hits.length} match(es) for "${pattern}" in ${file}:\n${hits.join("\n")}`
-}
+/** Shared grep over fixtures/ via fixture-search.ts (used by late joiners too). */
 
 export const sleuthTools: Tool[] = [
 	{
@@ -78,6 +65,20 @@ export class LogSleuth extends BaseParticipant {
 	onError(error: AgenticError): void {
 		sendMessage(this.environment, `[sleuth] WARNING: log analyst hit an error and went silent — ${error.message}`, this)
 	}
+
+	/**
+	 * Runtime roster awareness: a late-joining agent triggers this on every
+	 * existing participant. The sleuth greets it and notes its advertised
+	 * lock-analysis capability — pure discovery, no compile-time knowledge.
+	 * Guard: joins within the first second are the INITIAL assembly (each
+	 * join notifies all earlier members), not runtime arrivals — stay quiet.
+	 */
+	async onParticipantJoined(participant: import("@mozaik-ai/core").Participant): Promise<void> {
+		if (Date.now() - this.bornAt < 1000) return
+		sendMessage(this.environment, `[sleuth] welcome, ${participant.constructor.name} — signature feed is on [sleuth] rows; lock evidence is your lane.`, this)
+	}
+
+	private readonly bornAt = Date.now()
 
 	async onMessage(message: string): Promise<void> {
 		// React to live telemetry (alerts + raw logs), never twice to the same row.

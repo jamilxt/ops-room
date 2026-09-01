@@ -50,6 +50,24 @@ Rules:
 		sendMessage(this.environment, `[triage] WARNING: triage specialist hit an error and went silent — ${error.message}`, this)
 	}
 
+	/**
+	 * Runtime roster awareness: greet a late-joining agent and record its
+	 * arrival in the LLM context so future inferences know the room grew.
+	 * Guard: joins within the first second are the INITIAL assembly, not
+	 * runtime arrivals — stay quiet (and keep inference context clean).
+	 */
+	async onParticipantJoined(participant: import("@mozaik-ai/core").Participant): Promise<void> {
+		if (Date.now() - this.bornAt < 1000) return
+		sendMessage(this.environment, `[triage] welcome, ${participant.constructor.name} — send me lock analysis via [healer] rows; mitigation proposals stay PROPOSAL:tokened.`, this)
+		if (this.llm) {
+			this.context.addContextItem(
+				UserMessageItem.create(`[roster update] ${participant.constructor.name} joined the room mid-incident.`),
+			)
+		}
+	}
+
+	private readonly bornAt = Date.now()
+
 	async onMessage(message: string): Promise<void> {
 		// Telemetry → think. The sleuth's [sleuth] findings land here too:
 		// consuming a teammate's evidence BEFORE re-inferring is the shared-
@@ -59,7 +77,11 @@ Rules:
 			this.log(`evidence received: ${message.slice(0, 60)}…`)
 			return
 		}
-		if (message.startsWith("[commander]") && message.includes("HOLD")) {
+		if (message.startsWith("[commander]")) {
+			// Challenges are now addressed ("HOLD @healer — ..."): only react
+			// when the HOLD targets triage. Other agents' challenges are not
+			// ours to answer (learned when the late joiner got challenged).
+			if (!message.includes("@triage")) return
 			this.log(`challenge received — revising proposal`)
 			if (!this.llm) {
 				// Deterministic demo: fixed least-blast-radius answer.
