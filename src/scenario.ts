@@ -1,5 +1,5 @@
 import "dotenv/config"
-import { AgenticEnvironment } from "@mozaik-ai/core"
+import { AgenticEnvironment, SemanticEvent } from "@mozaik-ai/core"
 import { IncidentFeed, type FeedEvent } from "./incident-feed"
 import { TriageAgent } from "./triage-agent"
 import { LogSleuth } from "./log-sleuth"
@@ -141,6 +141,23 @@ export function runScenario(options: ScenarioOptions = {}, hooks: ScenarioHooks 
 			commander.admitListener(DatabaseHealer)
 			say(`  [roster] DatabaseHealer joined mid-incident — room notified via onParticipantJoined`)
 		}, timeline.slice(0, joinHealerAt + 1).reduce((acc, e) => acc + e.delayMs, 0) + 300)
+
+		// GOAL PIVOT (adaptability to system goals): when the incident commander
+		// (human via UI / SRE in the room) flips priorities mid-incident, the
+		// change travels as a TYPED SemanticEvent — not a chat line. Agents
+		// that opt in rewrite their own objectives at runtime; proposals
+		// visibly change character afterwards. Needs the environment handle,
+		// so it is delivered here rather than by the feed.
+		setTimeout(() => {
+			say(`  [goal] incident commander pivot: PRESERVE EVIDENCE first — mitigation proposals must now be evidence-preserving (snapshot/readonly) before any state change`)
+			environment.deliverSemanticEvent(
+				feed,
+				new SemanticEvent("goal-update", {
+					goal: "preserve-evidence",
+					directive: "snapshot/readonly evidence capture FIRST; state-changing mitigation only after capture",
+				}),
+			)
+		}, timeline.slice(0, joinHealerAt + 1).reduce((acc, e) => acc + e.delayMs, 0) + 4300)
 
 		say(`=== OpsRoom — concurrent incident response${llm ? " (LLM mode)" : " (deterministic demo)"} ===\n`)
 		feed.replay()

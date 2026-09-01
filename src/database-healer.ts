@@ -68,13 +68,30 @@ export class DatabaseHealer extends BaseParticipant {
 		)
 	}
 
+	/**
+	 * ADAPTABILITY TO SYSTEM GOALS: absorbs the commander's typed pivot. The
+	 * healer already prefers readonly levers; after the pivot it EXPLICITLY
+	 * sequences capture-before-change in its published analysis.
+	 */
+	async onExternalEvent(
+		_source: import("@mozaik-ai/core").Participant,
+		item: import("@mozaik-ai/core").SemanticEvent<unknown>,
+	): Promise<void> {
+		if (item.getType() !== "goal-update") return
+		const data = item.data as { goal?: string }
+		if (data.goal !== "preserve-evidence") return
+		this.evidenceFirst = true
+		sendMessage(this.environment, "[healer] goal absorbed: evidence preservation first — my analysis already runs readonly against fixture logs; sequencing any mitigation after capture.", this)
+	}
+
+	private evidenceFirst = false
+
 	async onMessage(message: string): Promise<void> {
 		// Only room SOURCES count as evidence. The commander's challenges quote
 		// error codes ("does not reference CHECKOUT_LOCK_ERROR") — treating
 		// those as lock evidence would make the healer re-analyze its own
 		// reviewer. Same for comms/feed/oncall chatter.
 		if (/^\[(commander|oncall|comms|feed|roster)\]/.test(message)) return
-
 		// Only lock-related evidence interests the healer.
 		const isLockEvidence =
 			message.includes("CHECKOUT_LOCK_ERROR") ||
@@ -99,7 +116,9 @@ export class DatabaseHealer extends BaseParticipant {
 
 		if (this.proposed) return
 		this.proposed = true
-		const proposal = "[healer] PROPOSAL: shrink checkout transaction scope and add targeted lock retry with backoff on the cart row; canary pods only. Cites CHECKOUT_LOCK_ERROR (confirmed above); all-pods restart explicitly rejected — least blast radius first."
+		const proposal = this.evidenceFirst
+			? "[healer] PROPOSAL: capture readonly snapshot of pg_locks + cart-row lock wait stats FIRST, then shrink checkout transaction scope and add targeted lock retry with backoff on the cart row; canary pods only. Cites CHECKOUT_LOCK_ERROR (confirmed above); evidence capture precedes every state change — least blast radius."
+			: "[healer] PROPOSAL: shrink checkout transaction scope and add targeted lock retry with backoff on the cart row; canary pods only. Cites CHECKOUT_LOCK_ERROR (confirmed above); all-pods restart explicitly rejected — least blast radius first."
 		sendMessage(this.environment, proposal, this)
 
 		// LLM BONUS PATH: model-written one-clause rationale for depth.

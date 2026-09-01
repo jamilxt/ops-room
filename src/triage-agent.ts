@@ -68,8 +68,35 @@ Rules:
 
 	private readonly bornAt = Date.now()
 
+	/**
+	 * ADAPTABILITY TO SYSTEM GOALS: the incident commander's pivot arrives as
+	 * a typed SemanticEvent (not chat). Triage rewrites its OWN objectives:
+	 * the goal is recorded and injected into the inference context, so every
+	 * proposal after the pivot is evidence-first. In deterministic mode the
+	 * scripted outputs switch to the snapshot-first variant.
+	 * (The feed is the event SOURCE, so agents receive onExternalEvent.)
+	 */
+	async onExternalEvent(
+		_source: import("@mozaik-ai/core").Participant,
+		item: import("@mozaik-ai/core").SemanticEvent<unknown>,
+	): Promise<void> {
+		if (item.getType() !== "goal-update") return
+		const data = item.data as { goal?: string; directive?: string }
+		if (data.goal !== "preserve-evidence") return
+		this.evidenceFirst = true
+		this.log(`GOAL UPDATE absorbed: ${data.goal} — proposals now evidence-first`)
+		if (this.llm) {
+			this.context.addContextItem(
+				UserMessageItem.create(
+					`[GOAL UPDATE from incident commander] New priority: ${data.goal}. ${data.directive ?? ""} Every mitigation proposal you emit from now on MUST lead with the evidence-preservation step (snapshot/readonly capture) before any state-changing action. Keep the PROPOSAL:/REVISED PROPOSAL: token contract.`,
+				),
+			)
+		}
+	}
+
+	private evidenceFirst = false
+
 	async onMessage(message: string): Promise<void> {
-		// Telemetry → think. The sleuth's [sleuth] findings land here too:
 		// consuming a teammate's evidence BEFORE re-inferring is the shared-
 		// state coordination the environment exists for.
 		if (message.startsWith("[sleuth]")) {
@@ -83,11 +110,14 @@ Rules:
 			// ours to answer (learned when the late joiner got challenged).
 			if (!message.includes("@triage")) return
 			this.log(`challenge received — revising proposal`)
+			// Post-pivot (GOAL: preserve-evidence): the challenge reply flips to
+			// evidence-first AND cites the confirmed signature so it passes the
+			// commander's gate on merit (the gate applies to everyone, incl.
+			// post-pivot triage).
 			if (!this.llm) {
-				// Deterministic demo: fixed least-blast-radius answer.
 				sendMessage(
 					this.environment,
-					"[triage] REVISED PROPOSAL: roll back the 3 canary instances only; all-pods restart is off the table",
+					"[triage] REVISED PROPOSAL: capture readonly snapshot of canary pod thread dumps + Hikari gauges grounding CHECKOUT_LOCK_ERROR, then roll back the 3 canary instances only; all-pods restart stays off the table",
 					this,
 				)
 				return
@@ -137,6 +167,17 @@ Rules:
 		// the sleuth is working in parallel, not waiting for triage.
 		setTimeout(() => {
 			const risky = message.includes("recommend whether to restart all pods")
+			// Post-pivot (GOAL: preserve-evidence): scripted outputs flip to
+			// snapshot-first — visible proof that a typed event changed the
+			// agent's objectives, no recompile, no restart.
+			if (this.evidenceFirst) {
+				const snap = risky
+					? "PROPOSAL: capture readonly snapshot of thread dumps, Hikari pool gauges and slow-query log from the canary pods FIRST (grounding CHECKOUT_LOCK_ERROR), then re-propose mitigation citing the captured evidence — no state change before capture"
+					: "hypothesis update (evidence-first): capturing readonly heap/thread snapshot from orders-api canary pods to confirm the CHECKOUT_LOCK_ERROR pool-exhaustion hypothesis before touching state"
+				sendMessage(this.environment, `[triage] ${snap}`, this)
+				this.log("evidence-first recommendation emitted")
+				return
+			}
 			const hypothesis = risky
 				? "PROPOSAL: restart ALL orders-api pods immediately to clear the stuck connection pool"
 				: message.includes("checkout")
