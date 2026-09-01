@@ -47,6 +47,32 @@ export class RiskCommander extends BaseParticipant {
 		console.log(`  [commander] listen scope expanded: now also watching ${listener.name}`)
 	}
 
+	/**
+	 * Symmetric release: when an admitted participant leaves gracefully,
+	 * drop it from interception scope — the roster stays consistent in both
+	 * directions. (A dead participant is NOT dropped: it is marked inactive
+	 * by the framework and delivers nothing; keeping it listed is harmless
+	 * and preserves the audit trail of who was ever watched.)
+	 */
+	releaseListener(listener: ListenerCtor): void {
+		if (!this.listens.some((l) => l === listener)) return
+		this.listens = this.listens.filter((l) => l !== listener)
+		console.log(`  [commander] listen scope released: ${listener.name} left the room`)
+	}
+
+	/**
+	 * Membership awareness: announce departures so the room (and the
+	 * transcript) records churn. onParticipantError handles INvoluntary
+	 * exits; this is the graceful path.
+	 */
+	async onParticipantLeft(participant: import("@mozaik-ai/core").Participant): Promise<void> {
+		// Initial-assembly guard does not apply to leaves; but stay quiet for
+		// participants that were never admitted (feed/scribe/comms churn).
+		const who = participant.constructor.name
+		if (who === "IncidentFeed" || who === "IncidentScribe") return
+		sendMessage(this.environment, `[commander] roster: ${who} left the room — coverage unchanged, its lane was resolved.`, this)
+	}
+
 	/** Room goal state — set by the commander's own typed-event absorption. */
 	private evidenceFirstGoal = false
 
@@ -65,6 +91,38 @@ export class RiskCommander extends BaseParticipant {
 		if (data.goal !== "preserve-evidence") return
 		this.evidenceFirstGoal = true
 		sendMessage(this.environment, "[commander] goal absorbed: evidence-first is now ENFORCED — state-changing proposals without readonly capture lead will be held.", this)
+	}
+
+	/**
+	 * RESILIENCE (self-monitoring room): when another participant's handler
+	 * throws, the framework marks it inactive — it stops receiving events
+	 * but the incident keeps rolling. The commander is the one participant
+	 * that ACTS on a death: announces it, reassesses what the room just
+	 * lost, and escalates to the human when coverage gaps appear.
+	 */
+	async onParticipantError(source: import("@mozaik-ai/core").Participant, error: import("@mozaik-ai/core").AgenticError): Promise<void> {
+		const who = source.constructor.name
+		const msg = error.message ?? "unknown error"
+		// Coverage map: which analytical lane did we just lose?
+		const lane =
+			who === "LogSleuth" ? "log analysis — no new error signatures will be confirmed"
+			: who === "TriageAgent" ? "triage — no new hypotheses or mitigation proposals"
+			: who === "DatabaseHealer" ? "lock analysis — healer is gone"
+			: who === "CommsAgent" ? "customer comms — status page will not be updated"
+			: null
+		const line = lane
+			? `[commander] teammate down: ${who} went inactive (${msg}). Room lost: ${lane}.`
+			: `[commander] teammate down: ${who} went inactive (${msg}).`
+		sendMessage(this.environment, line, this)
+		// A dead analyst or triage is a coverage gap a human must know about
+		// — the room can no longer ground or propose safely on its own.
+		if (lane && (who === "LogSleuth" || who === "TriageAgent")) {
+			sendMessage(
+				this.environment,
+				`[commander] ESCALATION @oncall — with ${who} inactive the room cannot ${who === "LogSleuth" ? "confirm new evidence" : "produce grounded proposals"}. Human judgment required for any further mitigation.`,
+				this,
+			)
+		}
 	}
 
 	async onMessage(message: string): Promise<void> {

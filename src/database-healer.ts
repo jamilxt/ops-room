@@ -128,6 +128,21 @@ export class DatabaseHealer extends BaseParticipant {
 		// is the demo guarantee; see README roadmap.)
 	}
 
+	/**
+	 * Graceful departure: the healer's lane resolved (proposal accepted,
+	 * goal absorbed), so it clocks out instead of idling in the room.
+	 * Called by the scenario a few seconds after the healer's final
+	 * proposal — membership churn in BOTH directions, no restart.
+	 */
+	leave(): void {
+		sendMessage(
+			this.environment,
+			"[healer] lock lane resolved — my proposal is on record and the room's goal is absorbed. Clocking out; re-join me if lock contention resurfaces.",
+			this,
+		)
+		this.environment.unsubscribe(this)
+	}
+
 	/** If the healer throws anywhere, announce it — never go silent (framework rule). */
 	onError(error: Error): void {
 		sendMessage(this.environment, `[healer] WARNING: database healer hit an error — ${error.message}`, this)

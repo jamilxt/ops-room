@@ -7,6 +7,7 @@ import { runScenario } from "./scenario"
  */
 runScenario({
 	interactive: process.env.OPSROOM_ONCALL === "interactive",
+	killSleuthAt7s: process.env.OPSROOM_FAULT === "sleuth",
 }).then((result) => {
 	console.log(
 		`\n[summary] sleuth signatures: ${result.signatures}, triage findings: ${result.findings}, commander challenges: ${result.challenges}`,

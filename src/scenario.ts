@@ -66,6 +66,8 @@ export interface ScenarioHooks {
 export interface ScenarioOptions {
 	interactive?: boolean
 	reportPath?: string
+	/** Fault injection for the resilience demo: kill the sleuth at T+7s. */
+	killSleuthAt7s?: boolean
 }
 
 export interface ScenarioResult {
@@ -158,6 +160,25 @@ export function runScenario(options: ScenarioOptions = {}, hooks: ScenarioHooks 
 				}),
 			)
 		}, timeline.slice(0, joinHealerAt + 1).reduce((acc, e) => acc + e.delayMs, 0) + 4300)
+
+		// GRACEFUL DEPARTURE: the healer's lane is resolved once its proposal
+		// is on record and the goal is absorbed — it clocks out, and the room
+		// (commander included, via onParticipantLeft) adapts. Membership churn
+		// in BOTH directions without a restart.
+		setTimeout(() => {
+			healer.leave()
+			commander.releaseListener(DatabaseHealer)
+		}, timeline.slice(0, joinHealerAt + 1).reduce((acc, e) => acc + e.delayMs, 0) + 6500)
+
+		// FAULT INJECTION (resilience demo, opt-in): a handler that throws
+		// marks the participant inactive mid-incident. The commander detects
+		// the death via onParticipantError and escalates the coverage gap to
+		// the on-call — the room keeps running, degraded but honest.
+		if (options.killSleuthAt7s) {
+			setTimeout(() => {
+				sleuth.crash("injected fault: log pipeline connection reset")
+			}, 7000)
+		}
 
 		say(`=== OpsRoom — concurrent incident response${llm ? " (LLM mode)" : " (deterministic demo)"} ===\n`)
 		feed.replay()

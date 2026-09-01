@@ -27,15 +27,29 @@ export class OnCallEngineer extends BaseParticipant {
 	}
 
 	async onMessage(message: string): Promise<void> {
-		if (!message.includes("[commander]") || !message.includes("ESCALATION")) return
+		// Two escalation flavors share the channel: proposal escalations carry
+		// "ESCALATION"; coverage-gap escalations carry "@oncall". Both land
+		// here — a dead teammate is at least as decision-worthy as a risky
+		// proposal.
+		const isEscalation =
+			(message.includes("[commander]") && message.includes("ESCALATION")) ||
+			message.includes("@oncall")
+		if (!isEscalation) return
 
 		if (!this.interactive) {
+			// Distinguish: proposal escalation → auto-proceed; coverage gap →
+			// human-only ack (there is nothing to auto-approve when a teammate
+			// died; the room is acknowledging reduced capacity).
+			if (message.includes("@oncall")) {
+				sendMessage(this.environment, "[oncall] coverage acknowledged — operating with reduced capacity; flagging in the handover notes", this)
+				return
+			}
 			sendMessage(this.environment, "[oncall] auto-review: proceeding with the revised proposal under extra monitoring", this)
 			return
 		}
 
 		const answer = await this.askHuman(
-			`\n⏸  ON-CALL (you): the room escalated an ungrounded plan.\n   ${message.slice(0, 160)}\n   Do you APPROVE proceeding? [y/N] `,
+			`\n⏸  ON-CALL (you): the room escalated.\n   ${message.slice(0, 160)}\n   Do you APPROVE proceeding? [y/N] `,
 		)
 		const approved = answer.trim().toLowerCase().startsWith("y")
 		sendMessage(

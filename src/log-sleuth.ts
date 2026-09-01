@@ -67,6 +67,21 @@ export class LogSleuth extends BaseParticipant {
 	}
 
 	/**
+	 * FAULT INJECTION (resilience demo): route a synthetic fault through the
+	 * framework's REAL error pipeline — deliverError fans the AgenticError
+	 * to every participant (onParticipantError), hands us our own onError,
+	 * and marks the sleuth inactive exactly like a genuine handler crash.
+	 * (AgenticErrorOpts' "enviornment" key typo is the framework's.)
+	 */
+	crash(reason: string): void {
+		console.log(`  [sleuth] FAULT INJECTED: ${reason}`)
+		this.environment.deliverError(
+			this,
+			new AgenticError({ message: reason, source: this, enviornment: this.environment }),
+		)
+	}
+
+	/**
 	 * Runtime roster awareness: a late-joining agent triggers this on every
 	 * existing participant. The sleuth greets it and notes its advertised
 	 * lock-analysis capability — pure discovery, no compile-time knowledge.
