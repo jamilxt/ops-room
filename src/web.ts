@@ -84,6 +84,10 @@ header h2{font-size:15px;font-weight:700}
 .body b{color:#fff}
 .row.risk{background:rgba(239,107,107,.05)}
 .row.risk .body{color:#ffb3b3}
+.row.goal{background:rgba(255,215,94,.06);border-left:3px solid #ffd75e}
+.row.goal .body{color:#ffe9a8}
+.row.roster{background:rgba(126,231,135,.06);border-left:3px solid #7ee787}
+.row.roster .body{color:#c9f2cd}
 .row.decision .body{color:var(--green);font-weight:600}
 .row.evidence{border-left:3px solid var(--green)}
 .why{margin-top:4px;font-size:12px;color:var(--amber);background:rgba(232,163,61,.09);border-left:3px solid var(--amber);padding:5px 9px;border-radius:0 5px 5px 0}
@@ -131,7 +135,7 @@ kbd{font-family:ui-monospace,Menlo,monospace;background:var(--pane2);border:1px 
 </main>
 <script>
 window.onerror=function(m){document.title="JS ERROR: "+m}
-const AGENTS={system:["⚙","#8892a5"],deploy:["🚀","#c98ee8"],alert:["🔔","#e8a33d"],metric:["📈","#54c7ec"],log:["📄","#9aa5b1"],triage:["🩺","#54c7ec"],sleuth:["🔍","#2bac76"],commander:["🎖","#ef6b6b"],comms:["📣","#c98ee8"],oncall:["🙋","#ffd75e"],scribe:["📝","#9aa5b1"]}
+const AGENTS={system:["⚙","#8892a5"],deploy:["🚀","#c98ee8"],alert:["🔔","#e8a33d"],metric:["📈","#54c7ec"],log:["📄","#9aa5b1"],triage:["🩺","#54c7ec"],sleuth:["🔍","#2bac76"],healer:["🛠","#e07be0"],commander:["🎖","#ef6b6b"],comms:["📣","#c98ee8"],oncall:["🙋","#ffd75e"],scribe:["📝","#9aa5b1"],goal:["🎯","#ffd75e"],roster:["👥","#7ee787"]}
 const CODES=["TIMEOUT_ERROR","CHECKOUT_LOCK_ERROR"]
 const WHY={HOLD:"An agent moved without proof — the referee held it until it cites confirmed evidence.",ESCALATION:"Two strikes ungrounded: automated review is over, the human decides.",signature:"Ground truth from raw logs, before any opinion forms.",default:"Parallel specialists negotiating on one shared bus — no orchestrator."}
 let es,pending=null,filter=null,msgCount=0
@@ -148,6 +152,8 @@ function rich(body){
 function el(html){const t=document.createElement("template");t.innerHTML=html.trim();return t.content.firstChild}
 function parseTag(rest){for(const k of Object.keys(AGENTS)){if(k!=="system"&&rest.indexOf("["+k+"] ")===0)return k}return null}
 function whyFor(line){
+ if(line.indexOf("GOAL")>=0||line.indexOf("[goal]")>=0)return "The incident commander flipped the room objective mid-incident — agents rewrite their own behavior, no restart."
+ if(line.indexOf("joined mid-incident")>=0)return "A specialist the room has never seen just appeared — everyone reorganizes via runtime discovery, no code change."
  if(line.indexOf("ESCALATION")>=0)return WHY.ESCALATION
  if(line.indexOf("HOLD")>=0)return WHY.HOLD
  if(line.indexOf("[sleuth]")>=0&&line.indexOf("error signature")>=0)return WHY.signature
@@ -168,8 +174,10 @@ function addRow(line){
  const risk=line.indexOf("HOLD")>=0||line.indexOf("ESCALATION")>=0||line.indexOf("⚠")>=0
  const dec=line.indexOf("human decision")>=0||line.indexOf("auto-review")>=0
  const evi=who==="sleuth"&&body.indexOf("error signature")>=0
- const cls=risk?"risk":dec?"decision":evi?"evidence":""
- const r=el('<div class="row '+cls+'" data-agent="'+who+'"><div class="avatar" style="background:'+info[1]+'22">'+info[0]+'</div><div style="min-width:0"><div class="meta">'+(ts?"<time>"+ts+"</time>":"")+"<b>"+who+"</b></div>"+'<div class="body"></div>'+(risk?"<div class='why'>"+whyFor(line)+"</div>":"")+"</div></div>")
+ const goalRow=who==="goal"||line.indexOf("GOAL UPDATE absorbed")>=0||line.indexOf("goal absorbed")>=0
+ const rosterRow=who==="roster"||line.indexOf("joined mid-incident")>=0
+ const cls=goalRow?"goal":rosterRow?"roster":risk?"risk":dec?"decision":evi?"evidence":""
+ const r=el('<div class="row '+cls+'" data-agent="'+who+'"><div class="avatar" style="background:'+info[1]+'22">'+info[0]+'</div><div style="min-width:0"><div class="meta">'+(ts?"<time>"+ts+"</time>":"")+"<b>"+who+"</b></div>"+'<div class="body"></div>'+((risk||goalRow||rosterRow)?"<div class='why'>"+whyFor(line)+"</div>":"")+"</div></div>")
  r.querySelector(".body").innerHTML=rich(body)
  feed.appendChild(r)
  msgCount++;bump("c-msg")
@@ -266,6 +274,7 @@ const AGENT_INFO: AgentSpec[] = [
 	{ id: "log", name: "Raw logs", role: "what really happened", group: "Signal from production" },
 	{ id: "triage", name: "TriageAgent", role: "alerts + metrics specialist", group: "Specialists" },
 	{ id: "sleuth", name: "LogSleuth", role: "raw-log analyst (uses tools)", group: "Specialists" },
+	{ id: "healer", name: "DatabaseHealer", role: "late joiner — lock contention", group: "Specialists" },
 	{ id: "commander", name: "RiskCommander", role: "interception & risk gate", group: "Referee" },
 	{ id: "oncall", name: "OnCallEngineer", role: "the human — final call", group: "Humans" },
 	{ id: "comms", name: "CommsAgent", role: "customer comms synthesis", group: "Support" },
