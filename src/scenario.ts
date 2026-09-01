@@ -8,6 +8,7 @@ import { IncidentScribe } from "./incident-scribe"
 import { CommsAgent } from "./comms-agent"
 import { OnCallEngineer } from "./oncall-engineer"
 import { DatabaseHealer } from "./database-healer"
+import { DocsLibrarian } from "./docs-librarian"
 import { TriageAgent as TriageAgentClass } from "./triage-agent"
 import type { Participant } from "@mozaik-ai/core"
 
@@ -121,6 +122,9 @@ export function runScenario(options: ScenarioOptions = {}, hooks: ScenarioHooks 
 		// The late joiner: NOT on the original roster. Joins mid-scenario,
 		// right after the lock-contention log lands — see joinHealerAt.
 		const healer = new DatabaseHealer(environment)
+		// MCP showcase: the librarian's toolbox is discovered from remote
+		// servers at runtime (free, keyless). Joins in the same wave.
+		const librarian = new DocsLibrarian(environment, llm)
 		// Lock-contention log row index (0-based): the [log] CHECKOUT_LOCK_ERROR
 		// timeline entry. The healer joins after this row publishes.
 		const joinHealerAt = 4
@@ -141,7 +145,13 @@ export function runScenario(options: ScenarioOptions = {}, hooks: ScenarioHooks 
 		setTimeout(() => {
 			healer.join(environment)
 			commander.admitListener(DatabaseHealer)
+			librarian.join(environment)
+			commander.admitListener(DocsLibrarian)
+			// Tool discovery is async — the librarian announces its toolbox on
+			// the bus the moment (or if) the remote servers respond.
+			void librarian.discoverTools()
 			say(`  [roster] DatabaseHealer joined mid-incident — room notified via onParticipantJoined`)
+			say(`  [roster] DocsLibrarian joined mid-incident — discovering its tools via MCP…`)
 		}, timeline.slice(0, joinHealerAt + 1).reduce((acc, e) => acc + e.delayMs, 0) + 300)
 
 		// GOAL PIVOT (adaptability to system goals): when the incident commander
