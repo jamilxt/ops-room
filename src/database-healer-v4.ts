@@ -1,5 +1,5 @@
 import { createAgent, type Agent, type SituationHandler } from "@mozaik-ai/core"
-import { sendMessage, runLoop, leave, whenMessageFrom, whenExternalEvent, processorFor, eventProcessorFor } from "./runtime-v4"
+import { sendMessage, runLoop, runLoopGated, leave, whenMessageFrom, whenExternalEvent, processorFor, eventProcessorFor } from "./runtime-v4"
 import { searchFixture } from "./fixture-search"
 
 /**
@@ -11,6 +11,9 @@ import { searchFixture } from "./fixture-search"
 export function createDatabaseHealer() {
 	const analyses: string[] = []
 	const seenLockEvidence = new Set<string>()
+	// Interceptor gate state: confirmed signatures ground any state-changing
+	// tool call this agent attempts inside a gated loop.
+	const confirmedSignatures: string[] = []
 	let proposed = false
 	let evidenceFirst = false
 	let assemblyDone = false
@@ -44,6 +47,9 @@ export function createDatabaseHealer() {
 			processor: processorFor((message, participant) => {
 				if (seenLockEvidence.has(message)) return
 				seenLockEvidence.add(message)
+				// Ground the interceptor gate: this message names a confirmed code.
+				const code = /\b(\w+_ERROR)\b/.exec(message)?.[1]
+				if (code && !confirmedSignatures.includes(code)) confirmedSignatures.push(code)
 
 				// GUARANTEED PATH: ground the analysis in the fixture directly.
 				const report = searchFixture("checkout.log", "CHECKOUT_LOCK_ERROR")

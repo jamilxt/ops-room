@@ -1,5 +1,5 @@
 import { SituationSpecification, UserMessageItem, createAgent, type Agent, type SituationContext, type SituationHandler } from "@mozaik-ai/core"
-import { sendMessage, runLoop, whenMessageFrom, whenParticipantJoins, whenExternalEvent, processorFor, eventProcessorFor } from "./runtime-v4"
+import { sendMessage, runLoop, runLoopGated, whenMessageFrom, whenParticipantJoins, whenExternalEvent, processorFor, eventProcessorFor } from "./runtime-v4"
 import { defaultModelName } from "./model-default.js"
 import { PROPOSAL_SCHEMA, normalizeProposal, renderProposalLine } from "./proposal-protocol"
 
@@ -11,6 +11,11 @@ import { PROPOSAL_SCHEMA, normalizeProposal, renderProposalLine } from "./propos
  */
 export function createTriageAgent(llm: boolean) {
 	const evidence: string[] = []
+	// Shared with the interceptor: confirmed error signatures the ROOM has
+	// seen. The sleuth's [sleuth] rows land here via the scribe counter, so
+	// the interceptor's evidence gate reflects room knowledge, not triage's
+	// private memory.
+	const confirmedSignatures: string[] = []
 	const findings: string[] = []
 	let evidenceFirst = false
 
@@ -79,6 +84,10 @@ export function createTriageAgent(llm: boolean) {
 
 				if (message.startsWith("[sleuth]")) {
 					evidence.push(message)
+					// Feed the interceptor's evidence gate: the /\b(\w+_ERROR)\b/
+					// code in the signature line is what makes tool calls grounded.
+					const code = /\b(\w+_ERROR)\b/.exec(message)?.[1]
+					if (code && !confirmedSignatures.includes(code)) confirmedSignatures.push(code)
 					console.log(`  [triage] evidence received: ${message.slice(0, 60)}…`)
 					return
 				}
@@ -91,12 +100,12 @@ export function createTriageAgent(llm: boolean) {
 						return
 					}
 					ctx.addContextItems([UserMessageItem.create(message)])
-					runLoop(agent.getId(), message, {
+					runLoopGated(agent.getId(), message, {
 						model,
 						context: ctx,
 						...(supportsStructured ? { structuredOutput: PROPOSAL_SCHEMA } : {}),
 						streaming: false,
-					})
+					}, confirmedSignatures)
 					return
 				}
 
@@ -110,12 +119,12 @@ export function createTriageAgent(llm: boolean) {
 						evidence.length = 0
 					}
 					ctx.addContextItems([UserMessageItem.create(message)])
-					runLoop(agent.getId(), message, {
+					runLoopGated(agent.getId(), message, {
 						model,
 						context: ctx,
 						...(supportsStructured ? { structuredOutput: PROPOSAL_SCHEMA } : {}),
 						streaming: false,
-					})
+					}, confirmedSignatures)
 					return
 				}
 

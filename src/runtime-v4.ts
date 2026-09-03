@@ -33,6 +33,27 @@ export const sendEvent = rt.sendEvent
 export const runLoop = rt.runLoop
 
 /**
+ * runLoopGated — runLoop with the incident interceptor as the 4th argument.
+ * Audits every function_call transition the model attempts inside the loop:
+ * state-changing tool calls (restart/rollback/migrate/...) are BLOCKED and
+ * rewritten into a readonly-capture redirect unless the room has confirmed
+ * evidence (signaturesSeen non-empty). Triage and healer route their loops
+ * through this instead of bare runLoop.
+ */
+export function runLoopGated(
+	agentId: string,
+	message: string,
+	opts: Parameters<typeof runLoop>[2],
+	signaturesSeen: string[],
+	onBlocked?: (toolName: string) => void,
+): ReturnType<typeof runLoop> {
+	// Lazy import to avoid a cycle: interceptor imports nothing from here.
+	// eslint-disable-next-line @typescript-eslint/no-var-requires
+	const { createIncidentInterceptor } = require("./incident-interceptor-v4") as typeof import("./incident-interceptor-v4")
+	return runLoop(agentId, message, opts, createIncidentInterceptor(agentId, signaturesSeen, onBlocked))
+}
+
+/**
  * Idempotent runtime bootstrap for long-lived hosts (the web console runs
  * many scenarios in ONE process; "Run again" must not throw). On re-entry
  * the participant registry is cleared so a fresh scenario starts from an
