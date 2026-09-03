@@ -283,7 +283,7 @@ html[data-theme=dark] kbd{background:rgba(255,255,255,.1);border-color:rgba(255,
  <div class="brand">
   <div class="brand-icon">⚡</div>
   <div class="brand-title">OpsRoom</div>
-  <div class="roster-status" id="roster-status"><span class="roster-pulse"></span><span id="roster-count">0 active</span></div>
+  <div class="roster-status" id="roster-status" title="Active participants out of total agents"><span class="roster-pulse"></span><span id="roster-count">0/12 active</span></div>
  </div>
  <div id="nav"></div>
  <div class="help" title="Click any agent to filter. Shortcuts: y (approve), n (reject), r (restart)">
@@ -375,8 +375,18 @@ const CODES=["TIMEOUT_ERROR","CHECKOUT_LOCK_ERROR","PessimisticLockException","S
 let es=null,pending=null,agentFilter=null,categoryFilter="all",msgCount=0
 let countSafety=0,countEvidence=0,countTelemetry=0
 const agentCounts={}
+let rosterIds=["deploy","alert","metric","log","triage","sleuth","healer","librarian","commander","oncall","comms","scribe"]
 let startTime=Date.now()
 const feed=document.getElementById("feed")
+
+function updateRosterCount(){
+ let used=0
+ for(let i=0;i<rosterIds.length;i++){
+  if((agentCounts[rosterIds[i]]||0)>0)used++
+ }
+ const rCt=document.getElementById("roster-count")
+ if(rCt)rCt.textContent=used+"/"+rosterIds.length+" active"
+}
 
 function esc(s){return s.split("&").join("&amp;").split("<").join("&lt;").split(">").join("&gt;")}
 function rich(h){
@@ -637,9 +647,7 @@ function addRow(line){
   const ct=ag.querySelector(".ct")
   if(ct)ct.textContent=String(agentCounts[who])
  }
- const usedCount=Object.keys(agentCounts).filter(function(k){return agentCounts[k]>0}).length
- const rCt=document.getElementById("roster-count")
- if(rCt)rCt.textContent=usedCount+" active"
+ updateRosterCount()
 
  if(story.cat==="safety"||story.cat==="directive"){countSafety++;document.getElementById("tc-safety").textContent=String(countSafety)}
  if(story.cat==="evidence"){countEvidence++;document.getElementById("tc-evidence").textContent=String(countEvidence)}
@@ -708,8 +716,7 @@ function reset(){
  for(const k of Object.keys(agentCounts))agentCounts[k]=0
  for(const ct of document.querySelectorAll(".agent .ct"))ct.textContent="0"
  for(const a of document.querySelectorAll(".agent"))a.classList.remove("used","on")
- const rCt=document.getElementById("roster-count")
- if(rCt)rCt.textContent="0 active"
+ updateRosterCount()
  for(const id of["c-sig","c-hold","c-esc","c-msg","tc-all","tc-safety","tc-evidence","tc-telemetry"]){
   const elX=document.getElementById(id);if(elX)elX.textContent="0"
  }
@@ -794,9 +801,9 @@ fetch("/agents").then(r=>r.json()).then((list)=>{
    applyFilters()
   }
  }
- const usedCount=Object.keys(agentCounts).filter(function(k){return agentCounts[k]>0}).length
- const rCt=document.getElementById("roster-count")
- if(rCt)rCt.textContent=usedCount+" active"
+ rosterIds=[]
+ for(const a of list)rosterIds.push(a.id)
+ updateRosterCount()
 })
 </script>
 </body>
