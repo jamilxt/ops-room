@@ -48,6 +48,14 @@ async function startRun(): Promise<void> {
 	busy = true
 	broadcast({ type: "state", value: "live" })
 	broadcast({ type: "reset" })
+	// Interceptor tap: mirror [interceptor] audit rows into the browser as
+	// dedicated events so the page can style them as guardrail badges.
+	;(globalThis as { __opsRoomOnLine?: (l: string) => void }).__opsRoomOnLine = (line: string) => {
+		if (line.includes("[interceptor]")) {
+			const blocked = line.includes("BLOCKED")
+			broadcast({ type: "guard", line, blocked })
+		}
+	}
 	try {
 		await runScenarioV4(
 			{ interactive: true },

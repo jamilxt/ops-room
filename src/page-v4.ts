@@ -237,6 +237,12 @@ header{display:flex;align-items:center;gap:12px;padding:10px 20px;border-bottom:
 
 /* Escalation Decision Card */
 .escalation-card{background:var(--pane);border:2px solid var(--red);border-radius:12px;padding:18px 20px;box-shadow:var(--shadow-md);animation:cardpop .2s ease-out;display:flex;flex-direction:column;gap:12px}
+.guard-strip{display:flex;align-items:center;gap:10px;border-radius:10px;padding:10px 14px;margin:6px 0;font-size:13px;animation:cardpop .2s ease-out;max-width:860px}
+.guard-blocked{background:var(--red-bg);border:1px solid var(--red-border);color:var(--red);font-weight:600}
+.guard-pass{background:var(--amber-bg);border:1px solid var(--amber-border);color:var(--amber)}
+.guard-icon{font-size:16px;flex-shrink:0}
+.guard-text{min-width:0;word-break:break-word}
+.guard-badge{display:none;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--amber);background:var(--amber-bg);border:1px solid var(--amber-border);border-radius:999px;padding:3px 10px}
 .esc-head{display:flex;align-items:center;gap:10px}
 .esc-icon{width:36px;height:36px;border-radius:8px;background:var(--red-bg);border:1px solid var(--red-border);display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--red);flex-shrink:0}
 .esc-title{font-size:15px;font-weight:800;color:var(--red)}
@@ -296,6 +302,7 @@ html[data-theme=dark] kbd{background:rgba(255,255,255,.1);border-color:rgba(255,
     <h1 class="header-title">Live Incident War Room</h1>
     <span id="hud-timer" class="hud-timer">T+0.0s</span>
     <span id="mode-tag">Deterministic Demo</span>
+    <span id="guard-badge" class="guard-badge" title="Interceptor audits: state-changing tool calls reviewed this run" style="display:none">0 audits</span>
    </div>
   <span class="hspace"></span>
   <span id="state" class="live-pill idle"><span class="pulsing-dot"></span><span id="state-text">connecting</span></span>
@@ -704,6 +711,9 @@ function render(line){
 function reset(){
  pending=null;msgCount=0;agentFilter=null;categoryFilter="all"
  countSafety=0;countEvidence=0;countTelemetry=0
+ guardCount=0
+ const gBtn=document.getElementById("guard-badge")
+ if(gBtn){gBtn.style.display="none";gBtn.textContent="0 audits"}
  startTime=Date.now()
  userScrolledUp=false
  searchQuery=""
@@ -725,10 +735,26 @@ function reset(){
  if(dirBox){
   dirBox.className="hud-directive"
   dirBox.innerHTML='<span class="hud-directive-badge">Standard Triage</span><span id="hud-directive-text">Diagnose canary degradation & propose safe remediation</span>'
- }
- updateStepper(1)
- feed.innerHTML='<div class="skelbox"><div class="skelline w1"></div><div class="skelline w2"></div><div class="skelline w3"></div><div class="skelline w4"></div><div class="skeltitle">Rolling out v2.14.3 canary & monitoring telemetry…</div></div>'
- setStatus("live","live")
+}
+updateStepper(1)
+feed.innerHTML='<div class="skelbox"><div class="skelline w1"></div><div class="skelline w2"></div><div class="skelline w3"></div><div class="skelline w4"></div><div class="skeltitle">Rolling out v2.14.3 canary & monitoring telemetry…</div></div>'
+setStatus("live","live")
+}
+
+// Guardrail badge: a distinct amber/red strip in the feed for interceptor
+// audit rows. BLOCKED = red (a state-changing call was stopped), ALLOWED or
+// PASSED = amber (the gate reviewed and released it). Counts roll into the
+// header guard badge too.
+let guardCount=0
+function renderGuard(line,blocked){
+ guardCount++
+ const gb=document.getElementById("guard-badge")
+ if(gb){gb.textContent=guardCount+(blocked?" blocked":" audits");gb.style.display="inline-flex"}
+ const who=(line.match(/-> ([\w.]+)/)||[])[1]||""
+ const isBlocked=!!blocked
+ const strip=el('<div class="guard-strip '+(isBlocked?"guard-blocked":"guard-pass")+'"><span class="guard-icon">'+(isBlocked?"🛡":"👁")+'</span><span class="guard-text">'+esc(line.replace(/^\[interceptor\] /,""))+'</span></div>')
+ feed.appendChild(strip)
+ strip.scrollIntoView({behavior:"smooth",block:"nearest"})
 }
 
 function start(){
@@ -736,6 +762,7 @@ function start(){
  es.onmessage=(ev)=>{
   let d;try{d=JSON.parse(ev.data)}catch(e){return}
   if(d.type==="row")render(d.line)
+  else if(d.type==="guard")renderGuard(d.line,d.blocked)
   else if(d.type==="escalation"){setStatus("waiting for you","waiting");addEscalation(d.text)}
   else if(d.type==="reset")reset()
   else if(d.type==="state"){if(d.value==="live"&&!pending)setStatus("live","live");else if(d.value==="idle")setStatus("idle","idle")}
