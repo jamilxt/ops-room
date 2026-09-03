@@ -32,6 +32,22 @@ export const sendMessage = rt.sendMessage
 export const sendEvent = rt.sendEvent
 export const runLoop = rt.runLoop
 
+/**
+ * Idempotent runtime bootstrap for long-lived hosts (the web console runs
+ * many scenarios in ONE process; "Run again" must not throw). On re-entry
+ * the participant registry is cleared so a fresh scenario starts from an
+ * empty room — the previous run's participants would otherwise keep
+ * receiving events.
+ */
+export function ensureRuntime(): void {
+	try {
+		initializeRuntime({ state: new OpsRoomState() })
+	} catch (error) {
+		if ((error as Error).message !== "Runtime already initialized") throw error
+		resolveRuntime().state.participants.clear()
+	}
+}
+
 /** Publish a semantic event on behalf of a participant (v3 deliverSemanticEvent). */
 export function deliverSemanticEvent(producer: Participant, event: SemanticEvent): void {
 	sendEvent(event, producer.getId())

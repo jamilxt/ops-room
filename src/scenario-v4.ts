@@ -1,6 +1,6 @@
 import "dotenv/config"
 import { SemanticEvent } from "@mozaik-ai/core"
-import { initializeRuntime, join, leave, OpsRoomState, sendMessage } from "./runtime-v4"
+import { ensureRuntime, join, leave, sendMessage } from "./runtime-v4"
 import { createIncidentFeed, type FeedEvent } from "./incident-feed-v4"
 import { createTriageAgent } from "./triage-agent-v4"
 import { createLogSleuth } from "./log-sleuth-v4"
@@ -58,7 +58,7 @@ function cliAsk(prompt: string): Promise<string> {
 export function runScenarioV4(options: ScenarioOptions = {}, hooks: ScenarioHooks = {}): Promise<ScenarioResult> {
 	return new Promise((resolve) => {
 		const say = hooks.onLine ?? ((line: string) => console.log(line))
-		initializeRuntime({ state: new OpsRoomState() })
+		ensureRuntime()
 		const llm = Boolean(process.env.OPENAI_API_KEY ?? process.env.GEMINI_API_KEY)
 
 		const feed = createIncidentFeed(timeline)
