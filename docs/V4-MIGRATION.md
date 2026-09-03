@@ -35,6 +35,14 @@ HOLD/ESCALATION annotations, Approve/Reject cards, **▶ Run again** re-runs in
 place (fixed: v4 throws `Runtime already initialized` on re-init; this branch
 handles it).
 
+v4-only UI features: **interceptor guard strips** (red shield = a state-changing
+tool call BLOCKED for lack of evidence; amber eye = ALLOWED, grounded), a live
+audit pill next to the roster, the escalation card actually wired end-to-end
+(`POST /decision` resolves the pause, the room resumes with the verdict), and
+**full activity logging in the browser** — every internal line (triage picks,
+goal updates, comms progress) streams to the page via `line-tap-v4.ts`, so the
+web log matches the server console exactly.
+
 ### 3. Real LLM (OpenAI cloud, verified)
 
 ```bash
@@ -81,6 +89,33 @@ no-op, fully offline.
 
 File map (`*-v4.ts` mirrors each v3 file; `runtime-v4.ts` holds the shared
 runtime + spec/processor factories). The v3 files are untouched for reference.
+v4 adds three files with no v3 counterpart:
+
+- `incident-interceptor-v4.ts` — the evidence gate for state-changing tool
+  calls (unsafe verbs: restart, rollback, migrate, delete, scale, kill…).
+  Blocked calls are rewritten to readonly evidence capture; grounded calls
+  pass with the grounding count. Exposes `stats` for the UI audit pill.
+- `line-tap-v4.ts` — central log tap; every internal line prints to the
+  server console AND streams to the browser (web registers a sink).
+- `docs-librarian-v4.ts` — the MCP showcase (v3 had no librarian):
+  tool discovery from remote MCP servers via `McpToolRegistry`.
+
+## The v4 room at a glance
+
+9 participants: Triage, LogSleuth, RiskCommander, Comms, Scribe,
+OnCallEngineer (human), DatabaseHealer and DocsLibrarian (both join
+mid-incident), plus the IncidentFeed. Two safety layers: the commander's
+proposal gate (PROPOSAL/HOLD/REVISED protocol) AND tool-call interception
+(`InterceptionHandler` as the 4th argument of `runLoop` — wired via
+`runLoopGated` in `runtime-v4.ts`; the deterministic demo beats go through
+the same handler, so demo path and LLM path share one audit trail).
+A mid-run goal pivot flips the room to preserve-evidence via a typed
+`goal-update` SemanticEvent, and the fault injection (sleuth crash) ends in
+a real human-approval pause resolved over `POST /decision`.
+
+Both modes verified end-to-end: deterministic (identical beats every run)
+and real LLM (`gpt-5.4-mini` — blocked beat, allowed beat, structured
+proposals, escalation, and on-call verdict all confirmed in captured runs).
 
 ## Known gaps
 
@@ -91,3 +126,14 @@ runtime + spec/processor factories). The v3 files are untouched for reference.
   several cloud session URLs (one per agent turn) instead of one.
 - v4 requires the structured-output gate above; passing a schema to a
   DeepSeek-registry model crashes the loop at request validation.
+
+## Conscious trade-offs (documented decisions, not gaps)
+
+- **`ModelContextRepository` not used** — the shared bus plus the
+  `confirmedSignatures` array already provide room-wide common knowledge;
+  agents read evidence from the transcript, not a private memory store.
+- **Token streaming not used** — single-shot inference keeps run timing
+  deterministic (the demo beats land on schedule in both modes).
+- **Cloud observability is per-loop-session in v4** (one session URL per
+  agent turn). Rather than monkey-patching the framework, the :8788
+  console surfaces the equivalent live view locally.

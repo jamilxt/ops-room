@@ -1,5 +1,14 @@
 # OpsRoom demo video script
 
+> **v4 note (spike/v4):** the demo arc grew — the video should now show the
+> interception beats and the human-approval pause. Recommended order:
+> reflex `restart_canary_pods` → **BLOCKED** strip → evidence lands → same call
+> **ALLOWED** → goal pivot → healer/librarian join → sleuth crash →
+> **human approval card** → verdict → comms status update → timeline.
+> Record `npm run web:v4` (browser) rather than the CLI — the guard strips,
+> audit pill, and approval card are the visuals judges remember. Both modes
+> work; deterministic is the safe recording path (identical beats every take).
+
 Target: **2:00**. One take per beat, cut together. Recorded on macOS, LLM mode (`OPENAI_API_KEY=sk-... LLM_MODEL=gpt-5.4-mini npm start`, ~1 cent per run).
 
 ## Before you hit record (checklist)
