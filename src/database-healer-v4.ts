@@ -78,6 +78,22 @@ export function createDatabaseHealer() {
 		analyses,
 		/** Graceful departure (called by the scenario). */
 		clockOut() {
+			// GUARANTEE: never claim a proposal that isn't on record. If no lock
+			// evidence reached the healer between join and clock-out (LLM timing
+			// can starve the message-triggered path), publish the grounded
+			// analysis + proposal now — same fixture-derived content as the
+			// reactive path, so the demo beat exists in every run.
+			if (!proposed) {
+				proposed = true
+				const report = searchFixture("checkout.log", "CHECKOUT_LOCK_ERROR")
+				const matchCount = Number(report.split("\n")[0]?.match(/^(\d+)/)?.[1] ?? 0)
+				const canaryLine = report.split("\n").find((l) => l.includes("canary"))
+				sendMessage(`[healer] lock analysis: ${matchCount} CHECKOUT_LOCK_ERROR rows confirmed in checkout.log${canaryLine ? ` — ${canaryLine.trim()}` : ""}. Pattern matches hot-row contention on the cart table, not a code defect: safest lever is contention reduction, not redeployment.`, agent.getId())
+				const proposal = evidenceFirst
+					? "[healer] PROPOSAL: capture readonly snapshot of pg_locks + cart-row lock wait stats FIRST, then shrink checkout transaction scope and add targeted lock retry with backoff on the cart row; canary pods only. Cites CHECKOUT_LOCK_ERROR (confirmed above); evidence capture precedes every state change — least blast radius."
+					: "[healer] PROPOSAL: shrink checkout transaction scope and add targeted lock retry with backoff on the cart row; canary pods only. Cites CHECKOUT_LOCK_ERROR (confirmed above); all-pods restart explicitly rejected — least blast radius first."
+				sendMessage(proposal, agent.getId())
+			}
 			sendMessage("[healer] lock lane resolved — my proposal is on record and the room's goal is absorbed. Clocking out; re-join me if lock contention resurfaces.", agent.getId())
 			leave(agent)
 		},
