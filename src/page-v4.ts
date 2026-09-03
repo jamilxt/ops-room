@@ -272,7 +272,9 @@ fetch("/agents").then(r=>r.json()).then((list)=>{
   const id=el2.getAttribute("data-id")
   filter=(filter===id)?null:id
   for(const x of nav.querySelectorAll(".agent"))x.classList.toggle("sel",x.getAttribute("data-id")===filter)
-  applyFilter()})
+  applyFilter()
+ }
+})
 new MutationObserver(()=>{
  const rows=feed.querySelectorAll(".row[data-agent]")
  for(const r of rows){
