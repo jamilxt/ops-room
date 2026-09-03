@@ -1,53 +1,42 @@
 # OpsRoom
 
-> **v4 spike:** a full port to Mozaik 4.0.0 (`defineRuntime` API) lives on the
-> [`spike/v4`](https://github.com/jamilxt/ops-room/tree/spike/v4) branch —
-> see [docs/V4-MIGRATION.md](docs/V4-MIGRATION.md) for what changed and how to
-> run it. The submission build below stays on `development` (Mozaik 3.14).
+Concurrent AI agents that fight a production incident together — built for the [JigJoy × daily.dev × Hyperskill hackathon](https://build.jigjoy.ai/) (Sep 5–6, 2026) on the [Mozaik](https://github.com/jigjoy-ai/mozaik) agentic environment, v4 runtime (`defineRuntime` API).
 
-## Quick start (v4 — spike/v4 branch)
+## Quick start
 
 ```bash
 git clone https://github.com/jamilxt/ops-room.git
 cd ops-room
 git checkout spike/v4
 npm install
-npm run web:v4        # open http://localhost:8788 — deterministic demo, no key needed
+npm run web        # open http://localhost:8788 — deterministic demo, no key needed
 ```
 
 For real LLM inference (verified with OpenAI `gpt-5.4-mini`): copy `.env.example`
-to `.env` and set `OPENAI_API_KEY` + `LLM_MODEL`, then rerun `npm run web:v4`.
-CLI variant: `npm run start:v4`.
+to `.env` and set `OPENAI_API_KEY` + `LLM_MODEL`, then rerun `npm run web`.
+CLI variant: `npm start`.
 
-Concurrent AI agents that fight a production incident together — built for the [JigJoy × daily.dev × Hyperskill hackathon](https://build.jigjoy.ai/) (Sep 5–6, 2026) on the [Mozaik](https://github.com/jigjoy-ai/mozaik) agentic environment.
-
-> **The v4 room has 9 participants** (plus the feed and typed semantic events):
+> **The room has 9 participants** (plus the feed and typed semantic events):
 > Triage, LogSleuth, RiskCommander, Comms, Scribe, On-call (the human),
 > DatabaseHealer, DocsLibrarian (MCP), and the IncidentFeed.
 
-**[Architecture diagram →](docs/architecture.html)** — six participants around one shared message bus; open in any browser. *(v3 — v4 adds the healer, librarian, and on-call human.)*
-
-**[Animated walkthrough →](docs/walkthrough.html)** — replay of a real run as a movie: six swimlanes, live message chips, the HOLD moment, comms' status update, with plain-English captions per phase.
-
 **[Demo video script →](docs/demo-video-script.md)** — shot-by-shot 2-minute recording plan.
+
+**[V4 migration notes →](docs/V4-MIGRATION.md)** — what the v4 runtime changed and why.
 
 ## What it is
 
-A live incident ops room where multiple agents run **truly concurrently** — no pipeline, no orchestrator:
+A live incident ops room where multiple agents run **truly concurrently** — no pipeline, no orchestrator. The scenario speaks **Java / Spring Boot**: a canary rollout of a Boot fat jar, an Actuator p95 alert on `POST /api/checkout`, Hikari pool saturation (`hikaricp.connections.pending=312`), JPA `PessimisticLockException` on cart rows.
 
-- **IncidentFeed** — replays a scripted production incident onto the shared `AgenticEnvironment`, exactly like real telemetry would. Scenario is written for a **Java / Spring Boot shop**: a canary rollout of a Boot fat jar, an Actuator p95 alert on `POST /api/checkout`, Hikari pool saturation (`hikaricp.connections.pending=312`), JPA `PessimisticLockException` on cart rows
+- **IncidentFeed** — replays a scripted production incident onto the shared `AgenticEnvironment`, exactly like real telemetry would; also delivers the mid-run **goal pivot** as a typed `goal-update` SemanticEvent
 - **TriageAgent** — reacts to alerts/metrics, forms hypotheses; **consumes the sleuth's evidence** before re-inferring; obeys commander HOLDs with a `REVISED PROPOSAL`
-- **LogSleuth** — works *in parallel* on raw log lines, extracts error signatures; never waits for triage. The only agent that **uses a real Mozaik tool**: its `search_logs` function tool greps actual fixture logs (`CheckoutRepository.java`, `CheckoutService.java` stack frames) via the framework's function-calling loop, so every signature it publishes is earned from files, not guessed
+- **LogSleuth** — works *in parallel* on raw log lines, extracts error signatures; never waits for triage. Its `search_logs` function tool greps actual fixture logs, so every signature it publishes is earned from files, not guessed
 - **RiskCommander** — intercepts mitigation proposals mid-room and challenges them with an evidence-citing HOLD, unprompted — emergent coordination, not a pipeline step
-- **CommsAgent** — silently watches the whole room, then at incident end drafts the customer-facing status update (LLM mode: real synthesis from the full transcript)
-- **IncidentScribe** — pure observer; writes a live `incident-timeline.md` of everything that crossed the environment
-
-### v4-only participants (spike/v4)
-
 - **DatabaseHealer** — joins **mid-incident** when lock evidence appears; reads `[sleuth]` signatures from the bus (not private memory), analyzes the Postgres lock contention, clocks out gracefully when its proposal is on record
 - **DocsLibrarian** — the MCP showcase: its entire toolbox is **discovered from remote MCP servers** (`docs.x.com`, `deepwiki`) at startup via `McpToolRegistry`; verifies configuration questions against official docs
 - **OnCallEngineer** — the **human in the room**: escalation pauses the run and the decision comes from the keyboard (CLI) or Approve/Reject buttons (web)
-- **Goal pivot as a typed event** — the room's directive flips to *preserve-evidence* mid-run via a `goal-update` SemanticEvent; agents that opt in rewrite their objectives without a restart
+- **CommsAgent** — silently watches the whole room, then at incident end drafts the customer-facing status update (LLM mode: real synthesis from the full transcript)
+- **IncidentScribe** — pure observer; writes a live `incident-timeline.md` of everything that crossed the environment
 
 ## Inter-agent protocol
 
@@ -65,12 +54,12 @@ restart"). So mitigations travel as contract tokens:
 - `REVISED PROPOSAL:` → resolves the negotiation, no ping-pong loops
 - HOLD messages cite actual shared evidence from the room
 
-### v4 adds a second safety layer: tool-call interception
+### Second safety layer: tool-call interception
 
-The protocol above gates *proposals*. v4 also gates *actions* — every state-changing
-tool call (`restart`, `rollback`, `migrate`, `delete`, `scale`, `kill`…) passes
-through an `InterceptionHandler` (Mozaik v4's interception hook) before it can
-execute:
+The protocol above gates *proposals*. The room also gates *actions* — every
+state-changing tool call (`restart`, `rollback`, `migrate`, `delete`, `scale`,
+`kill`…) passes through an `InterceptionHandler` (Mozaik v4's interception hook)
+before it can execute:
 
 - **No confirmed evidence → BLOCKED.** The call is rewritten to a readonly
   evidence-capture step and the room sees `[interceptor] ⚠ BLOCKED …` in the
@@ -96,12 +85,10 @@ npm start
 
 ```bash
 npm run web
-# → http://localhost:8787  (custom port: OPSROOM_PORT=9000 npm run web)
+# → http://localhost:8788  (custom port: OPSROOM_PORT=9000 npm run web)
 ```
 
-Slack-style `#incident-war-room` rendering the live run in your browser: agent roster with live activity, every bus row as a chat bubble, HOLD/ESCALATION rows annotated with a "why this matters" line, and the escalation surfaces as a **⏸ Human decision required** card with **Approve / Reject** buttons wired to the real pause. `▶ Run again` restarts a fresh incident without leaving the page.
-
-CLI stays fully functional (same engine, same behavior):
+Slack-style `#incident-war-room` rendering the live run in your browser: agent roster with live activity, every bus row as a chat bubble, **interceptor guard strips** (red shield = BLOCKED for lack of evidence; amber = ALLOWED, grounded), a live audit pill, HOLD/ESCALATION rows annotated with a "why this matters" line, and the escalation surfaces as a **⏸ Human decision required** card with **Approve / Reject** buttons wired to the real pause — while the room visibly holds (roster dims, header reads "awaiting on-call"). `▶ Run again` restarts a fresh incident without leaving the page.
 
 No API key needed — the demo runs fully deterministic. For real LLM inference, set `LLM_MODEL` to any Mozaik registry name and provide a matching credential. **Verified path: OpenAI cloud (`gpt-5.4-mini`)** — the `gpt-*` registry names route through Mozaik's native OpenAI adapter. Other OpenAI-compatible endpoints (DeepSeek, OpenRouter, Ollama, LM Studio, llama.cpp) work through the generic `/v1/chat/completions` adapter via the `deepseek-v4-flash` registry entry.
 
@@ -150,21 +137,11 @@ npm start
 ## Repo layout
 
 ```
-src/                      # v3 (development branch, Mozaik 3.14) — kept for reference
-  index.ts            # CLI entrypoint (console mode)
-  web.ts              # web entrypoint: zero-dep SSE server + war-room UI
-  scenario.ts         # shared engine: timeline + who joins the environment
-  incident-feed.ts    # deterministic telemetry participant
-  triage-agent.ts     # alert/metric specialist (PROPOSAL/REVISED PROPOSAL)
-  log-sleuth.ts       # log analyst — the tool user (search_logs via Mozaik function-calling)
-  risk-commander.ts   # evidence-citing interception agent (HOLD → ESCALATION)
-  comms-agent.ts      # status-update synthesizer (end of incident)
-  oncall-engineer.ts  # HUMAN participant: approves/rejects escalations
-  incident-scribe.ts  # observer → live timeline artifact
-src/ (v4)                 # spike/v4 branch — the v4 room, one -v4 mirror per file
+src/
   runtime-v4.ts           # defineRuntime<OpsRoomState>, spec/processor factories, runLoop + runLoopGated
   scenario-v4.ts          # timeline, mid-incident joins, goal pivot, interception beats, fault injection
   incident-interceptor-v4.ts  # the evidence gate for state-changing tool calls (BLOCKED/ALLOWED + stats)
+  interception-beat-v4.ts # demo beats routed through the REAL interceptor (one audit path for demo + LLM)
   triage-agent-v4.ts      # diagnostician; consumes sleuth evidence; interceptable tool attempts
   log-sleuth-v4.ts        # log forensics (search_logs tool, deterministic fixture grep)
   database-healer-v4.ts   # late-joining Postgres specialist; clock-out exit
@@ -176,19 +153,22 @@ src/ (v4)                 # spike/v4 branch — the v4 room, one -v4 mirror per 
   incident-feed-v4.ts     # telemetry replay + typed goal-update SemanticEvent
   web-v4.ts / page-v4.ts  # war-room console (SSE; guard strips, escalation card, full activity log)
   line-tap-v4.ts          # central log tap — every internal line reaches console AND browser
+  proposal-protocol.ts    # typed proposal schema + canonical bus line (shared by triage & commander)
+  fixture-search.ts       # deterministic grep over fixture logs (shared by sleuth & healer)
+  model-default.ts        # central default model selection
 fixtures/
   orders-api.log      # what search_logs actually greps (Spring/Hikari stack frames)
   checkout.log
 scripts/
-  test-oncall.ts      # escalation smoke test (both decision branches)
-  test-commander-gate.ts  # regression: gate loopholes, two-strike, exemptions (8 checks)
-  demo-local.mjs      # one-command local-LLM demo (ENTRY=src/index-v4.ts for v4)
+  demo-local.mjs      # one-command local-LLM demo
+  mock-openai.mjs     # mock OpenAI server for offline testing
+  mcp-probe.ts        # MCP tool-discovery smoke test
 ```
 
 ## Design notes
 
-- **Streaming is off by default.** Not an omission: on Mozaik 3.14's chat-completions endpoint, streaming delivers raw provider chunks (`chat.completion.chunk`) but never assembles the completed `ModelMessageItem` or `FunctionCallItem`s, so `onModelMessage`/`onFunctionCall` never fire (verified against the installed 3.14.0 with an A/B repro; the items-plus-events contract in the docs only holds on the Responses endpoint). OpsRoom uses single-shot inference, which still runs fully concurrent; nothing in the demo needs token streaming.
-- **Interception is a contract, not vibes.** Agents speak `PROPOSAL:` / `REVISED PROPOSAL:` tokens so the commander's grounding gate fires deterministically even when the LLM paraphrases. Tokens must open their own statement; revisions are gated like fresh proposals; two consecutive ungrounded rows escalate to the human instead of looping.
-- **A human has the last word.** When a revised proposal still cites no evidence, the commander ESCALATES and the on-call engineer decides — at the keyboard (`OPSROOM_ONCALL=interactive npm start`) or with buttons in the web console.
-- **One engine, two frontends.** `scenario.ts` drives both the CLI and the web console — same bus, same participants, same evidence gates; only the output sink differs. The scenario speaks Java/Spring (Hikari, Actuator, JPA locks) while keeping machine tags and error codes stable, so the negotiating agents don't care and Java-fluent humans do.
-- **Trade-offs we consciously made (v4).** Not using `ModelContextRepository` — the shared bus plus the `confirmedSignatures` array already give the room common knowledge, and that's the demo's story. Not using token streaming — single-shot inference keeps timing deterministic for the demo. Cloud observability is per-loop-session in v4 (one session per agent turn) — we surface the equivalent view in our own :8788 console instead. Every console line is mirrored to the browser log via `line-tap-v4.ts`, so nothing happens off-screen.
+- **Streaming is off by default.** Single-shot inference keeps run timing deterministic — the interception beats and the human-approval pause land on schedule in both deterministic and LLM modes. Nothing in the demo needs token streaming.
+- **Interception is a contract, not vibes.** Agents speak `PROPOSAL:` / `REVISED PROPOSAL:` tokens (typed via `structuredOutput` json_schema) so the commander's grounding gate fires deterministically even when the LLM paraphrases. Tokens must open their own statement; revisions are gated like fresh proposals; two consecutive ungrounded rows escalate to the human instead of looping.
+- **A human has the last word.** When a revised proposal still cites no evidence — or a teammate goes down mid-incident — the commander ESCALATES and the on-call engineer decides: at the keyboard (CLI) or with buttons in the web console.
+- **One engine, two frontends.** `scenario-v4.ts` drives both the CLI and the web console — same bus, same participants, same evidence gates; only the output sink differs. Machine tags and error codes stay stable, so the negotiating agents don't care and Java-fluent humans do.
+- **Trade-offs we consciously made.** Not using `ModelContextRepository` — the shared bus plus the `confirmedSignatures` array already give the room common knowledge, and that's the demo's story. Not using token streaming — single-shot inference keeps timing deterministic for the demo. Cloud observability is per-loop-session in v4 (one session per agent turn) — we surface the equivalent view in our own :8788 console instead. Every console line is mirrored to the browser log via `line-tap-v4.ts`, so nothing happens off-screen.

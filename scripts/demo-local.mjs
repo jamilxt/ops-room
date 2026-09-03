@@ -103,6 +103,6 @@ const env = {
 
 if (!useLlm) delete env.OPENAI_API_KEY
 
-const entry = process.env.ENTRY ?? "src/index.ts" // v4 spike: ENTRY=src/index-v4.ts
+const entry = process.env.ENTRY ?? "src/index-v4.ts"
 const child = spawn("npx", ["tsx", entry], { stdio: "inherit", env })
 child.on("exit", (code) => process.exit(code ?? 0))
