@@ -93,6 +93,11 @@ header{display:flex;align-items:center;gap:12px;padding:10px 20px;border-bottom:
 #run:hover{filter:brightness(1.08);transform:translateY(-1px)}
 #theme{background:none;border:1px solid var(--line);color:var(--dim);padding:6px 11px;font-size:13px}
 #theme:hover{background:var(--hover);color:var(--text)}
+#focus-toggle{background:none;border:1px solid var(--line);color:var(--dim);padding:6px 11px;font-size:12px}
+#focus-toggle:hover{background:var(--hover);color:var(--text)}
+#focus-toggle.active{background:var(--primary-bg);color:var(--primary);border-color:var(--primary)}
+body.focus-mode aside{display:none}
+body.focus-mode #feed{max-width:1040px}
 
 /* Incident HUD (Heads-Up Display) */
 .hud{display:flex;align-items:stretch;gap:12px;padding:8px 20px;background:var(--pane2);border-bottom:1px solid var(--line);flex-wrap:wrap}
@@ -323,9 +328,9 @@ html[data-theme=dark] kbd{background:rgba(255,255,255,.1);border-color:rgba(255,
   <div class="roster-status" id="roster-status" title="Active participants out of total agents"><span class="roster-pulse"></span><span id="roster-count">…</span></div>
  </div>
  <div id="nav"></div>
- <div class="help" title="Click any agent to filter. Shortcuts: y (approve), n (reject), r (restart)">
-  <span><kbd>y</kbd>/<kbd>n</kbd> on-call gate · <kbd>r</kbd> restart demo</span>
- </div>
+  <div class="help" title="Click any agent to filter. Shortcuts: y (approve), n (reject), r (restart), f (focus)">
+   <span><kbd>y</kbd>/<kbd>n</kbd> gate · <kbd>r</kbd> restart · <kbd>f</kbd> focus</span>
+  </div>
 </aside>
 <main>
  <header>
@@ -337,6 +342,7 @@ html[data-theme=dark] kbd{background:rgba(255,255,255,.1);border-color:rgba(255,
    </div>
   <span class="hspace"></span>
   <span id="state" class="live-pill idle"><span class="pulsing-dot"></span><span id="state-text">connecting</span></span>
+  <button id="focus-toggle" class="btn-header" title="Toggle Presenter/Focus Mode (Shortcut: f)" aria-label="Toggle Presenter Mode">⛶ Focus</button>
   <button id="theme" class="btn-header" title="Switch light/dark mode">☾</button>
   <button id="run" class="btn-header">▶ Restart Demo</button>
  </header>
@@ -918,11 +924,27 @@ let savedTheme=null;try{savedTheme=localStorage.getItem("opsroom-theme")}catch(e
 applyTheme(savedTheme||(window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"))
 themeBtn.onclick=()=>{applyTheme(document.documentElement.getAttribute("data-theme")==="dark"?"light":"dark")}
 
+// Presenter / Focus Mode
+const focusBtn=document.getElementById("focus-toggle")
+function toggleFocus(enable){
+ const isFocus=enable!==undefined?enable:!document.body.classList.contains("focus-mode")
+ document.body.classList.toggle("focus-mode",isFocus)
+ if(focusBtn){
+  focusBtn.classList.toggle("active",isFocus)
+  focusBtn.setAttribute("title",isFocus?"Exit Focus Mode (f)":"Presenter/Focus Mode (f)")
+ }
+ try{localStorage.setItem("opsroom-focus",isFocus?"1":"0")}catch(e){}
+}
+if(focusBtn)focusBtn.onclick=()=>toggleFocus()
+try{if(localStorage.getItem("opsroom-focus")==="1")toggleFocus(true)}catch(e){}
+
 // Keyboard shortcuts
 document.addEventListener("keydown",(ev)=>{
+ const isTyping=document.activeElement&&(document.activeElement.tagName==="INPUT"||document.activeElement.tagName==="TEXTAREA")
  if(ev.key==="y"&&pending)decide(true)
  else if(ev.key==="n"&&pending)decide(false)
- else if(ev.key==="r"&&!pending)fetch("/run",{method:"POST"})
+ else if(ev.key==="r"&&!pending&&!isTyping)fetch("/run",{method:"POST"})
+ else if(ev.key==="f"&&!isTyping)toggleFocus()
 })
 
 start()
