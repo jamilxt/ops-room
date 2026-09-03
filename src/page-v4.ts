@@ -208,7 +208,9 @@ body.awaiting .brand-title:after{content:" — awaiting on-call";color:var(--amb
 .badge.hypo{color:var(--violet);background:var(--violet-bg);border:1px solid var(--violet-border)}
 .badge.dec{color:var(--green);background:var(--green-bg);border:1px solid var(--green-border)}
 .badge.telemetry{color:var(--dim);background:var(--pane2);border:1px solid var(--line)}
-.hud-timer{font-size:11px;font-weight:700;color:var(--primary);background:var(--primary-bg);border:1px solid var(--primary);border-radius:6px;padding:2px 8px;font-family:ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums}
+.hud-timer{font-size:11px;font-weight:700;color:var(--primary);background:var(--primary-bg);border:1px solid var(--primary);border-radius:6px;padding:2px 8px;font-family:ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums;transition:all .2s ease}
+.hud-timer.paused{color:var(--amber);background:var(--amber-bg);border-color:var(--amber);animation:dotpulse 1.3s infinite}
+.hud-timer.done{color:var(--green);background:var(--green-bg);border-color:var(--green-border)}
 .time-badge{margin-left:auto;display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:700;color:var(--dim);background:var(--pane2);border:1px solid var(--line);border-radius:6px;padding:2px 7px;font-variant-numeric:tabular-nums;font-family:ui-monospace,Menlo,monospace;letter-spacing:.3px;flex-shrink:0}
 .time-badge .t-rel{color:var(--primary);font-weight:700}
 .time-badge .t-sep{color:var(--faint);opacity:.6}
@@ -394,7 +396,42 @@ let es=null,pending=null,agentFilter=null,categoryFilter="all",msgCount=0
 let countSafety=0,countEvidence=0,countTelemetry=0
 const agentCounts={}
 let rosterIds=["deploy","alert","metric","log","triage","sleuth","healer","librarian","commander","oncall","comms","scribe"]
-let startTime=Date.now()
+let startTime=Date.now(),timerInterval=null,isTimerPaused=false
+function tickTimer(){
+ if(isTimerPaused)return
+ const elapsed=Math.max(0,((Date.now()-startTime)/1000)).toFixed(1)
+ const hTimer=document.getElementById("hud-timer")
+ if(hTimer)hTimer.textContent="T+"+elapsed+"s"
+}
+function startTimer(){
+ if(timerInterval)clearInterval(timerInterval)
+ isTimerPaused=false
+ startTime=Date.now()
+ timerInterval=setInterval(tickTimer,100)
+ const hTimer=document.getElementById("hud-timer")
+ if(hTimer){hTimer.className="hud-timer";hTimer.textContent="T+0.0s"}
+}
+function pauseTimer(){
+ isTimerPaused=true
+ const elapsed=Math.max(0,((Date.now()-startTime)/1000)).toFixed(1)
+ const hTimer=document.getElementById("hud-timer")
+ if(hTimer){
+  hTimer.className="hud-timer paused"
+  hTimer.textContent="⏸ T+"+elapsed+"s (paused for on-call)"
+ }
+}
+function resumeTimer(){
+ if(!isTimerPaused)return
+ isTimerPaused=false
+ const hTimer=document.getElementById("hud-timer")
+ if(hTimer)hTimer.className="hud-timer"
+}
+function stopTimer(){
+ if(timerInterval){clearInterval(timerInterval);timerInterval=null}
+ isTimerPaused=false
+ const hTimer=document.getElementById("hud-timer")
+ if(hTimer)hTimer.className="hud-timer done"
+}
 const feed=document.getElementById("feed")
 
 function updateRosterCount(){
@@ -639,7 +676,7 @@ function addRow(line){
  const pad=function(n){return n<10?"0"+n:""+n}
  const clockTime=pad(d.getHours())+":"+pad(d.getMinutes())+":"+pad(d.getSeconds())
  const hTimer=document.getElementById("hud-timer")
- if(hTimer)hTimer.textContent=ts
+ if(hTimer&&!timerInterval&&!isTimerPaused)hTimer.textContent=ts
 
  const who=parseTag(rest)||"system"
  const body=rest.replace("["+who+"] ","")
@@ -713,6 +750,7 @@ function addRow(line){
 
 function addEscalation(text){
  updateStepper(4)
+ pauseTimer()
  pending=el('<div class="escalation-card" data-step="4"><div class="esc-head"><div class="esc-icon">⚠️</div><div><div class="esc-title">Human Decision Required — Safety Gate Triggered</div><div class="esc-sub">The AI agents cannot proceed with state changes without on-call authorization</div></div></div><div class="esc-body"></div><div class="esc-actions"><button id="yes" class="btn-esc btn-approve"><kbd>y</kbd> Approve Mitigation</button><button id="no" class="btn-esc btn-reject"><kbd>n</kbd> Reject (Demand Safer Fix)</button></div></div>')
  pending.querySelector(".esc-body").textContent=text
  feed.appendChild(pending)
@@ -723,6 +761,7 @@ function addEscalation(text){
 
 function decide(approved){
  if(!pending)return
+ resumeTimer()
  const n=pending;pending=null
  n.innerHTML='<div class="esc-head"><div class="esc-icon" style="color:var(--green)">✓</div><div><div class="esc-title" style="color:var(--text)">Decision Recorded: '+(approved?'Approved by On-Call':'Rejected by On-Call — Seeking Safer Fix')+'</div><div class="esc-sub">The war room has resumed autonomous operations</div></div></div>'
  fetch("/decision",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({answer:approved?"y":"n"})})
@@ -730,6 +769,7 @@ function decide(approved){
 
 function addRecap(sig,fnd,ch){
  updateStepper(5)
+ stopTimer()
  const card=el('<div class="recap-card" data-step="5"><div class="rc-header"><div class="rc-icon">✓</div><div><div class="rc-title">Incident Successfully Contained & Mitigated</div><div class="rc-sub">Multi-agent governance prevented catastrophic outage and resolved lock contention</div></div></div><div class="rc-grid"><div class="rc-stat g"><b>'+(sig===undefined?"2":String(sig))+'</b><span>Evidence Signatures</span></div><div class="rc-stat a"><b>'+(fnd===undefined?"3":String(fnd))+'</b><span>Proposals Evaluated</span></div><div class="rc-stat r"><b>'+(ch===undefined?"1":String(ch))+'</b><span>Safety Holds</span></div><div class="rc-stat b"><b>'+String(msgCount)+'</b><span>Total Events</span></div></div><div class="rc-insights"><div class="rc-insight-row"><span class="rc-check">✓</span><div><b>Root Cause:</b> Row lock contention (<span class="code">CHECKOUT_LOCK_ERROR</span>) on orders-api cart table cascaded into connection pool starvation (<span class="code">TIMEOUT_ERROR</span>).</div></div><div class="rc-insight-row"><span class="rc-check">✓</span><div><b>Key Safeguard:</b> Risk Commander prevented blind pod restart (saving 60s outage); Database Healer safely localized mitigation to canary pods.</div></div></div><div class="rc-footer">Audit trail recorded by Incident Scribe → <span class="code-green">incident-timeline.md</span></div></div>')
  feed.appendChild(card)
  card.scrollIntoView({block:"center"})
@@ -756,6 +796,7 @@ function reset(){
  const gBtn=document.getElementById("guard-badge")
  if(gBtn){gBtn.style.display="none";gBtn.textContent="0 audits"}
  startTime=Date.now()
+ startTimer()
  userScrolledUp=false
  searchQuery=""
  const sBox=document.getElementById("search-box")
@@ -799,6 +840,7 @@ function renderGuard(line,blocked){
 }
 
 function start(){
+ startTimer()
  es=new EventSource("/events")
  es.onmessage=(ev)=>{
   let d;try{d=JSON.parse(ev.data)}catch(e){return}
@@ -806,7 +848,7 @@ function start(){
   else if(d.type==="guard")renderGuard(d.line,d.blocked)
   else if(d.type==="escalation"){setStatus("waiting for you","waiting");addEscalation(d.text);document.body.classList.add("awaiting")}
   else if(d.type==="reset")reset()
-  else if(d.type==="state"){if(d.value==="live"&&!pending){setStatus("live","live");document.body.classList.remove("awaiting")}else if(d.value==="idle"){setStatus("idle","idle");document.body.classList.remove("awaiting")}}
+  else if(d.type==="state"){if(d.value==="live"&&!pending){setStatus("live","live");document.body.classList.remove("awaiting");resumeTimer()}else if(d.value==="idle"){setStatus("idle","idle");document.body.classList.remove("awaiting");stopTimer()}}
   else if(d.type==="summary"){render("");addRecap(d.sig,d.findings,d.challenges);setStatus("idle","idle")}
   else if(d.type==="hello"){const mt=document.getElementById("mode-tag");if(mt)mt.textContent=d.mode}
  }
