@@ -1,5 +1,10 @@
 # OpsRoom
 
+> **v4 spike:** a full port to Mozaik 4.0.0 (`defineRuntime` API) lives on the
+> [`spike/v4`](https://github.com/jamilxt/ops-room/tree/spike/v4) branch —
+> see [docs/V4-MIGRATION.md](docs/V4-MIGRATION.md) for what changed and how to
+> run it. The submission build below stays on `development` (Mozaik 3.14).
+
 Concurrent AI agents that fight a production incident together — built for the [JigJoy × daily.dev × Hyperskill hackathon](https://build.jigjoy.ai/) (Sep 5–6, 2026) on the [Mozaik](https://github.com/jigjoy-ai/mozaik) agentic environment.
 
 **[Architecture diagram →](docs/architecture.html)** — six participants around one shared message bus; open in any browser.
