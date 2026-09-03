@@ -85,11 +85,16 @@ async function startRun(): Promise<void> {
 	}
 }
 
-function handler(req: IncomingMessage, res: ServerResponse): void {
+async function handler(req: IncomingMessage, res: ServerResponse): Promise<void> {
 	const url = req.url ?? "/"
 	if (url === "/") {
 		res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" })
-		res.end(PAGE)
+		try {
+			const mod = await import(`./page-v4.js?v=${Date.now()}`)
+			res.end(mod.PAGE || PAGE)
+		} catch {
+			res.end(PAGE)
+		}
 	} else if (url === "/events") {
 		res.writeHead(200, {
 			"Content-Type": "text/event-stream",
