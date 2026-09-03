@@ -145,7 +145,7 @@ async function handler(req: IncomingMessage, res: ServerResponse): Promise<void>
 	} else if (url === "/agents") {
 		res.writeHead(200, { "Content-Type": "application/json" })
 		res.end(JSON.stringify(AGENT_INFO))
-	} else if (url === "/timeline" && req.method === "GET") {
+	} else if (url === "/timeline" && (req.method === "GET" || req.method === "HEAD")) {
 		const fs = await import("node:fs/promises")
 		const path = await import("node:path")
 		const timelinePath = path.resolve(process.cwd(), "incident-timeline.md")
