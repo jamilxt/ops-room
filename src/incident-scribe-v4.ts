@@ -1,4 +1,5 @@
 import { createHuman, type SituationHandler } from "@mozaik-ai/core"
+import { tapLine } from "./line-tap-v4"
 import { appendFileSync, writeFileSync } from "node:fs"
 import { whenMessageFrom, processorFor } from "./runtime-v4"
 
@@ -9,7 +10,7 @@ import { whenMessageFrom, processorFor } from "./runtime-v4"
  */
 export function createIncidentScribe(
 	onSig?: () => void,
-	say: (line: string) => void = (line) => console.log(line),
+	say: (line: string) => void = tapLine,
 ) {
 	const startedAt = Date.now()
 	const lines: string[] = ["# Incident timeline (generated live by IncidentScribe)", ""]

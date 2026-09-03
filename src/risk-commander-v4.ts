@@ -1,4 +1,5 @@
 import { SituationSpecification, createAgent, type SituationContext, type SituationHandler } from "@mozaik-ai/core"
+import { tapLine } from "./line-tap-v4"
 import { sendMessage, whenMessageFrom, eventProcessorFor, processorFor } from "./runtime-v4"
 import { parseProposalLine } from "./proposal-protocol"
 
@@ -30,7 +31,7 @@ export function createRiskCommander() {
 		const offender = source.match(/^\[(\w+)\]/)?.[1] ?? "agent"
 		const challenge = `${kind} @${offender} — that proposal ${reason}. Confirmed evidence so far: ${signaturesSeen.join(", ") || "none yet"}. ${guidance}`
 		challenges.push(source)
-		console.log(`  [commander] ⚠ challenging: ${source.slice(0, 60)}…`)
+		tapLine(`  [commander] ⚠ challenging: ${source.slice(0, 60)}…`)
 		sendMessage(`[commander] ${challenge}`, participantId)
 	}
 

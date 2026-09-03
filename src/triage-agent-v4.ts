@@ -3,6 +3,7 @@ import { sendMessage, runLoop, whenMessageFrom, whenParticipantJoins, whenExtern
 import { defaultModelName } from "./model-default.js"
 import { PROPOSAL_SCHEMA, normalizeProposal, renderProposalLine } from "./proposal-protocol"
 import { createIncidentInterceptor } from "./incident-interceptor-v4"
+import { tapLine } from "./line-tap-v4"
 
 /**
  * TriageAgent v4. Reacts to alerts and metrics from the feed. In LLM mode it
@@ -52,7 +53,7 @@ export function createTriageAgent(llm: boolean) {
 				const data = event.payload as { goal?: string; directive?: string }
 				if (data.goal !== "preserve-evidence") return
 				evidenceFirst = true
-				console.log(`  [triage] GOAL UPDATE absorbed: ${data.goal} — proposals now evidence-first`)
+				tapLine(`  [triage] GOAL UPDATE absorbed: ${data.goal} — proposals now evidence-first`)
 				if (llm) {
 					;(participant as Agent).getMemory().getContext().addContextItems([
 						UserMessageItem.create(`[GOAL UPDATE from incident commander] New priority: ${data.goal}. ${data.directive ?? ""} Every mitigation proposal you emit from now on MUST lead with the evidence-preservation step (snapshot/readonly capture) before any state-changing action. Keep the PROPOSAL:/REVISED PROPOSAL: token contract.`),
@@ -99,13 +100,13 @@ export function createTriageAgent(llm: boolean) {
 					// code in the signature line is what makes tool calls grounded.
 					const code = /\b(\w+_ERROR)\b/.exec(message)?.[1]
 					if (code && !confirmedSignatures.includes(code)) confirmedSignatures.push(code)
-					console.log(`  [triage] evidence received: ${message.slice(0, 60)}…`)
+					tapLine(`  [triage] evidence received: ${message.slice(0, 60)}…`)
 					return
 				}
 
 				if (message.startsWith("[commander]")) {
 					if (!message.includes("@triage")) return
-					console.log(`  [triage] challenge received — revising proposal`)
+					tapLine(`  [triage] challenge received — revising proposal`)
 					if (!llm) {
 						sendMessage(`[triage] REVISED PROPOSAL: capture readonly snapshot of canary pod thread dumps + Hikari gauges grounding CHECKOUT_LOCK_ERROR, then roll back the 3 canary instances only; all-pods restart stays off the table`, participant.getId())
 						return
@@ -121,7 +122,7 @@ export function createTriageAgent(llm: boolean) {
 				}
 
 				if (!message.startsWith("[alert]") && !message.startsWith("[metric]")) return
-				console.log(`  [triage] picked up: ${message.slice(0, 70)}…`)
+				tapLine(`  [triage] picked up: ${message.slice(0, 70)}…`)
 				findings.push(message)
 
 				if (llm) {

@@ -1,5 +1,6 @@
 import { SituationSpecification, UserMessageItem, createAgent, type Agent, type SituationContext, type SituationHandler } from "@mozaik-ai/core"
 import { sendMessage, runLoop, whenMessageFrom, processorFor, eventProcessorFor } from "./runtime-v4"
+import { tapLine } from "./line-tap-v4"
 import { defaultModelName } from "./model-default.js"
 
 /**
@@ -35,7 +36,7 @@ export function createCommsAgent(llm: boolean) {
 				if (!text) return
 				published = true
 				sendMessage(`[comms] ${text}`, participant.getId())
-				console.log(`  [comms] draft ready (${text.length} chars)`)
+				tapLine(`  [comms] draft ready (${text.length} chars)`)
 			}),
 		},
 	]
@@ -62,7 +63,7 @@ Be factual. Use only facts from the transcript you were given.`,
 				published = true
 				const sigs = draft.filter((m) => m.startsWith("[sleuth]") && m.includes("error signature")).length
 				sendMessage("[comms] STATUS UPDATE (deterministic): We identified degraded checkout performance following a canary deploy to orders-api. Two error signatures were confirmed by automated log analysis. A mitigation review is underway under risk supervision. Services remain partially degraded while we roll out the safest fix first.", agent.getId())
-				console.log(`  [comms] deterministic status update published (${sigs} signatures observed)`)
+				tapLine(`  [comms] deterministic status update published (${sigs} signatures observed)`)
 				return
 			}
 			runLoop(agent.getId(), "The incident timeline is complete. Publish the STATUS UPDATE and NEXT STEPS artifacts now.", {
@@ -70,7 +71,7 @@ Be factual. Use only facts from the transcript you were given.`,
 				context: agent.getMemory().getContext(),
 				streaming: false,
 			})
-			console.log("  [comms] synthesizing status update from full room transcript…")
+			tapLine("  [comms] synthesizing status update from full room transcript…")
 		},
 	}
 }

@@ -9,6 +9,7 @@
 //     first. The dangerous tool call never executes.
 // Everything else passes untouched. Emits [interceptor] rows for the demo.
 import { type InterceptionHandler, type ExecutableTransition } from "@mozaik-ai/core"
+import { tapLine } from "./line-tap-v4"
 
 const UNSAFE_VERBS = ["restart", "rollback", "roll_back", "migrate", "delete", "drop", "scale", "flush", "kill"]
 
@@ -30,7 +31,7 @@ export function createIncidentInterceptor(
 	const stats: InterceptionStats = { blocked: [], passed: 0 }
 	// UI tap: the web console sets this via onEvent to mirror audit rows into
 	// the browser stream (same lines the server console prints).
-	const emit = (line: string) => (globalThis as { __opsRoomOnLine?: (l: string) => void }).__opsRoomOnLine?.(line)
+	const emit = tapLine
 
 	return {
 		stats,
@@ -46,13 +47,11 @@ export function createIncidentInterceptor(
 			const unsafe = UNSAFE_VERBS.some((v) => lowered.includes(v))
 			if (!unsafe) {
 				stats.passed++
-				console.log(`  [interceptor] PASSED  ${agentName} -> ${name}`)
 				emit(`[interceptor] PASSED ${agentName} -> ${name}`)
 				return transition
 			}
 			if (signaturesSeen.length > 0) {
 				stats.passed++
-				console.log(`  [interceptor] ALLOWED ${agentName} -> ${name} (grounded on ${signaturesSeen.length} confirmed signatures)`)
 				emit(`[interceptor] ALLOWED ${agentName} -> ${name} (grounded on ${signaturesSeen.length} confirmed signatures)`)
 				return transition
 			}
@@ -60,7 +59,6 @@ export function createIncidentInterceptor(
 			// never runs; the agent instead receives a redirect instruction.
 			stats.blocked.push(name)
 			const blockLine = `[interceptor] BLOCKED ${agentName} -> ${name} — no confirmed evidence; redirecting to readonly capture`
-			console.log(`  [interceptor] ⚠ BLOCKED ${agentName} -> ${name} — no confirmed evidence; redirecting to readonly capture`)
 			emit(blockLine)
 			onBlocked?.(name)
 			return {

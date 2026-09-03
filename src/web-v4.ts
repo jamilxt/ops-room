@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
 import { runScenarioV4 } from "./scenario-v4"
 import { PAGE } from "./page-v4"
+import { setLineSink } from "./line-tap-v4"
 
 /**
  * Web entrypoint, v4 runtime edition — minimal redesign (see page-v4.ts).
@@ -48,14 +49,18 @@ async function startRun(): Promise<void> {
 	busy = true
 	broadcast({ type: "state", value: "live" })
 	broadcast({ type: "reset" })
-	// Interceptor tap: mirror [interceptor] audit rows into the browser as
-	// dedicated events so the page can style them as guardrail badges.
-	;(globalThis as { __opsRoomOnLine?: (l: string) => void }).__opsRoomOnLine = (line: string) => {
+	// Line tap: EVERY internal narrator line (triage picks, goal updates,
+	// comms progress, scribe, challenge notices) now flows through
+	// tapLine() -> here, so the browser log matches the server console.
+	// Interceptor audit rows additionally get their dedicated guard event
+	// so the page can style them as guardrail strips.
+	setLineSink((line: string) => {
+		broadcast({ type: "row", line })
 		if (line.includes("[interceptor]")) {
 			const blocked = line.includes("BLOCKED")
 			broadcast({ type: "guard", line, blocked })
 		}
-	}
+	})
 	try {
 		await runScenarioV4(
 			{ interactive: true, killSleuthAt7s: true },
