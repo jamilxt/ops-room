@@ -5,6 +5,20 @@
 > see [docs/V4-MIGRATION.md](docs/V4-MIGRATION.md) for what changed and how to
 > run it. The submission build below stays on `development` (Mozaik 3.14).
 
+## Quick start (v4 — spike/v4 branch)
+
+```bash
+git clone https://github.com/jamilxt/ops-room.git
+cd ops-room
+git checkout spike/v4
+npm install
+npm run web:v4        # open http://localhost:8788 — deterministic demo, no key needed
+```
+
+For real LLM inference (verified with OpenAI `gpt-5.4-mini`): copy `.env.example`
+to `.env` and set `OPENAI_API_KEY` + `LLM_MODEL`, then rerun `npm run web:v4`.
+CLI variant: `npm run start:v4`.
+
 Concurrent AI agents that fight a production incident together — built for the [JigJoy × daily.dev × Hyperskill hackathon](https://build.jigjoy.ai/) (Sep 5–6, 2026) on the [Mozaik](https://github.com/jigjoy-ai/mozaik) agentic environment.
 
 **[Architecture diagram →](docs/architecture.html)** — six participants around one shared message bus; open in any browser.

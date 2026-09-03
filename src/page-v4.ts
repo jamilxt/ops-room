@@ -289,7 +289,7 @@ html[data-theme=dark] kbd{background:rgba(255,255,255,.1);border-color:rgba(255,
  <div class="brand">
   <div class="brand-icon">⚡</div>
   <div class="brand-title">OpsRoom</div>
-  <div class="roster-status" id="roster-status" title="Active participants out of total agents"><span class="roster-pulse"></span><span id="roster-count">0/12 active</span></div>
+  <div class="roster-status" id="roster-status" title="Active participants out of total agents"><span class="roster-pulse"></span><span id="roster-count">…</span></div>
  </div>
  <div id="nav"></div>
  <div class="help" title="Click any agent to filter. Shortcuts: y (approve), n (reject), r (restart)">
@@ -387,6 +387,10 @@ let startTime=Date.now()
 const feed=document.getElementById("feed")
 
 function updateRosterCount(){
+ // The roster totals PARTICIPANTS (from /agents), not just speakers — but
+ // the header should read as "who's working": count an agent as active only
+ // once it has said something. Telemetry tags (deploy/alert/metric/log)
+ // come through the feed participant, so they count toward its slot.
  let used=0
  for(let i=0;i<rosterIds.length;i++){
   if((agentCounts[rosterIds[i]]||0)>0)used++
@@ -394,6 +398,7 @@ function updateRosterCount(){
  const rCt=document.getElementById("roster-count")
  if(rCt)rCt.textContent=used+"/"+rosterIds.length+" active"
 }
+updateRosterCount()
 
 function esc(s){return s.split("&").join("&amp;").split("<").join("&lt;").split(">").join("&gt;")}
 function rich(h){

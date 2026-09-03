@@ -1,11 +1,13 @@
 {
 	"name": "ops-room",
 	"version": "0.1.0",
-	"description": "Live incident ops room — concurrent AI agents triaging a production incident on the Mozaik agentic environment",
+	"description": "Live incident ops room \u2014 concurrent AI agents triaging a production incident on the Mozaik agentic environment",
 	"type": "module",
 	"scripts": {
 		"start": "tsx src/index.ts",
 		"web": "tsx src/web.ts",
+		"start:v4": "tsx src/index-v4.ts",
+		"web:v4": "tsx src/web-v4.ts",
 		"demo:local": "node scripts/demo-local.mjs",
 		"mock:llm": "node scripts/mock-openai.mjs 8787",
 		"typecheck": "tsc --noEmit"
