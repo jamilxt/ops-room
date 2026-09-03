@@ -249,12 +249,30 @@ body.awaiting .brand-title:after{content:" — awaiting on-call";color:var(--amb
 
 /* Escalation Decision Card */
 .escalation-card{background:var(--pane);border:2px solid var(--red);border-radius:12px;padding:18px 20px;box-shadow:var(--shadow-md);animation:cardpop .2s ease-out;display:flex;flex-direction:column;gap:12px}
-.guard-strip{display:flex;align-items:center;gap:10px;border-radius:10px;padding:10px 14px;margin:6px 0;font-size:13px;animation:cardpop .2s ease-out;max-width:860px}
+.guard-strip{display:flex;align-items:center;gap:10px;border-radius:10px;padding:10px 14px;margin:6px 0;font-size:13px;animation:cardpop .2s ease-out;max-width:860px;cursor:pointer;transition:all .15s;user-select:none}
+.guard-strip:hover{filter:brightness(1.04);transform:translateY(-1px);box-shadow:var(--shadow-sm)}
 .guard-blocked{background:var(--red-bg);border:1px solid var(--red-border);color:var(--red);font-weight:600}
 .guard-pass{background:var(--amber-bg);border:1px solid var(--amber-border);color:var(--amber)}
 .guard-icon{font-size:16px;flex-shrink:0}
 .guard-text{min-width:0;word-break:break-word}
-.guard-badge{display:none;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--amber);background:var(--amber-bg);border:1px solid var(--amber-border);border-radius:999px;padding:3px 10px}
+.guard-badge{display:none;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--amber);background:var(--amber-bg);border:1px solid var(--amber-border);border-radius:999px;padding:3px 10px;cursor:pointer;transition:all .15s;user-select:none}
+.guard-badge:hover{filter:brightness(1.08);transform:translateY(-1px);box-shadow:var(--shadow-sm)}
+
+/* Guardrail Legend Modal */
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(3px);z-index:999;display:flex;align-items:center;justify-content:center;padding:20px;animation:fadein .15s ease-out}
+@keyframes fadein{from{opacity:0}to{opacity:1}}
+.modal{background:var(--pane);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow-md);max-width:540px;width:100%;padding:20px;display:flex;flex-direction:column;gap:14px;animation:cardpop .2s ease-out;position:relative}
+.modal-head{display:flex;align-items:center;gap:10px}
+.modal-icon{width:34px;height:34px;border-radius:8px;background:var(--amber-bg);border:1px solid var(--amber-border);display:flex;align-items:center;justify-content:center;font-size:18px}
+.modal-title{font-size:15px;font-weight:800;color:var(--text)}
+.modal-close{margin-left:auto;background:none;border:none;color:var(--faint);font-size:18px;cursor:pointer;padding:4px 8px;border-radius:6px;transition:all .15s}
+.modal-close:hover{color:var(--text);background:var(--hover)}
+.modal-body{font-size:12.5px;color:var(--dim);line-height:1.55;display:flex;flex-direction:column;gap:12px}
+.legend-item{display:flex;gap:12px;align-items:flex-start;background:var(--pane2);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+.legend-item.blocked{border-left:4px solid var(--red)}
+.legend-item.allowed{border-left:4px solid var(--amber)}
+.legend-title{font-size:12.5px;font-weight:700;color:var(--text);margin-bottom:2px}
+.legend-desc{font-size:11.5px;color:var(--dim);line-height:1.45}
 .esc-head{display:flex;align-items:center;gap:10px}
 .esc-icon{width:36px;height:36px;border-radius:8px;background:var(--red-bg);border:1px solid var(--red-border);display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--red);flex-shrink:0}
 .esc-title{font-size:15px;font-weight:800;color:var(--red)}
@@ -827,14 +845,32 @@ setStatus("live","live")
 // audit rows. BLOCKED = red (a state-changing call was stopped), ALLOWED or
 // PASSED = amber (the gate reviewed and released it). Counts roll into the
 // header guard badge too.
+function showGuardModal(){
+ const existing=document.getElementById("guard-modal-backdrop")
+ if(existing)return
+ const m=el('<div class="modal-backdrop" id="guard-modal-backdrop"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="g-modal-title"><div class="modal-head"><div class="modal-icon">🛡️</div><div><div class="modal-title" id="g-modal-title">Mozaik v4 Interceptor Governance</div><div style="font-size:11px;color:var(--faint)">Two-tier safety: Proposal Protocol + Tool-Call Interception</div></div><button class="modal-close" id="g-modal-close" aria-label="Close modal">✕</button></div><div class="modal-body"><div class="legend-item blocked"><span style="font-size:18px;line-height:1">🛡</span><div><div class="legend-title" style="color:var(--red)">BLOCKED (State-Changing Verb Stopped)</div><div class="legend-desc">When an agent attempts an unsafe action (<span class="code">restart</span>, <span class="code">rollback</span>, <span class="code">scale</span>, <span class="code">delete</span>) before the room has confirmed error signatures, the call is blocked and rewritten to a readonly diagnostic capture.</div></div></div><div class="legend-item allowed"><span style="font-size:18px;line-height:1">👁</span><div><div class="legend-title" style="color:var(--amber)">ALLOWED (Grounded on Room Evidence)</div><div class="legend-desc">Once error signatures (<span class="code">TIMEOUT_ERROR</span>, <span class="code">CHECKOUT_LOCK_ERROR</span>) are confirmed by the room, the same call passes with citation counts.</div></div></div><div style="background:var(--pane2);padding:9px 12px;border-radius:7px;border:1px solid var(--line);font-size:11.5px;color:var(--dim)"><b>Room Invariant:</b> Evidence is held in shared bus state, not private agent memory. No agent can self-authorize dangerous remediations.</div></div></div></div>')
+ document.body.appendChild(m)
+ const close=()=>{m.remove();document.removeEventListener("keydown",onKey)}
+ const onKey=(e)=>{if(e.key==="Escape")close()}
+ m.querySelector("#g-modal-close").onclick=close
+ m.onclick=(e)=>{if(e.target===m)close()}
+ document.addEventListener("keydown",onKey)
+}
+
 let guardCount=0
 function renderGuard(line,blocked){
  guardCount++
  const gb=document.getElementById("guard-badge")
- if(gb){gb.textContent=guardCount+(blocked?" blocked":" audits");gb.style.display="inline-flex"}
+ if(gb){
+  gb.textContent=guardCount+(blocked?" blocked":" audits")
+  gb.style.display="inline-flex"
+  gb.onclick=showGuardModal
+ }
  const isBlocked=!!blocked
  const cleanText=line.indexOf("[interceptor] ")===0?line.slice(14):line
- const strip=el('<div class="guard-strip '+(isBlocked?"guard-blocked":"guard-pass")+'"><span class="guard-icon">'+(isBlocked?"🛡":"👁")+'</span><span class="guard-text">'+esc(cleanText)+'</span></div>')
+ const strip=el('<div class="guard-strip '+(isBlocked?"guard-blocked":"guard-pass")+'" title="Click to view interceptor governance rule" tabindex="0" role="button"><span class="guard-icon">'+(isBlocked?"🛡":"👁")+'</span><span class="guard-text">'+esc(cleanText)+'</span></div>')
+ strip.onclick=showGuardModal
+ strip.onkeydown=(e)=>{if(e.key==="Enter"||e.key===" ")showGuardModal()}
  feed.appendChild(strip)
  strip.scrollIntoView({behavior:"smooth",block:"nearest"})
 }
