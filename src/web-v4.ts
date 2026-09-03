@@ -58,7 +58,7 @@ async function startRun(): Promise<void> {
 	}
 	try {
 		await runScenarioV4(
-			{ interactive: true },
+			{ interactive: true, killSleuthAt7s: true },
 			{
 				onLine: (line) => broadcast({ type: "row", line }),
 				askHuman: (prompt) =>

@@ -30,7 +30,8 @@ export function createOnCallEngineer(
 				const answer = await askHuman(
 					`\n⏸  ON-CALL (you): the room escalated.\n   ${message.slice(0, 160)}\n   Do you APPROVE proceeding? [y/N] `,
 				)
-				const approved = answer.trim().toLowerCase().startsWith("y")
+				const a = answer.trim().toLowerCase()
+				const approved = a.startsWith("y") || a === "approve" || a === "yes"
 				sendMessage(
 					`[oncall] human decision: ${approved ? "APPROVED — proceed with monitoring" : "REJECTED — containment measures only"}`,
 					participant.getId(),
