@@ -1,0 +1,22 @@
+# Incident timeline (generated live by IncidentScribe)
+
+- `T+0.5s [deploy] deploy: orders-api v2.14.3 rolled out to 3/10 pods (canary) — Spring Boot 3 fat jar, Hikari pool 10 conns/pod`
+- `T+3.0s [sleuth] error signature: 2026-09-05T14:00:21.312Z orders-api CheckoutRepository.java:88 SQLTransientConnectionException TIMEOUT_ERROR acquiring Hikari connection, waited 5000ms`
+- `T+3.0s [sleuth] error signature: 2026-09-05T14:00:24.104Z orders-api CheckoutService.java:41 PessimisticLockException CHECKOUT_LOCK_ERROR cart row lock contention, lock held 3.1s`
+- `T+3.0s [alert] alert: actuator http.server.requests p95 4.2s (baseline 210ms) on POST /api/checkout, firing for 2m`
+- `T+3.1s [triage] MockLLM says: staged rollback first.`
+- `T+5.0s [log] log: orders-api CheckoutRepository.java:88 SQLTransientConnectionException TIMEOUT_ERROR acquiring Hikari connection, waited 5000ms (x1,204 in 60s)`
+- `T+9.0s [metric] metric: orders-api HikariPool-1 active 100% (10/10), threads waiting 312 — micrometer gauge hikaricp.connections.pending=312`
+- `T+9.0s [triage] MockLLM says: staged rollback first.`
+- `T+14.0s [log] log: orders-api CheckoutService.java:41 PessimisticLockException CHECKOUT_LOCK_ERROR cart row lock contention, lock held 3.1s (x87)`
+- `T+14.3s [triage] welcome, DatabaseHealer — send me lock analysis via [healer] rows; mitigation proposals stay PROPOSAL:tokened.`
+- `T+14.3s [triage] welcome, DocsLibrarian — send me lock analysis via [healer] rows; mitigation proposals stay PROPOSAL:tokened.`
+- `T+17.4s [librarian] ready — 6 tools discovered via MCP at runtime (search_x, query_docs_filesystem_x, submit_feedback, ask_question, read_wiki_contents, …). None of these exist in our source code.`
+- `T+18.3s [commander] goal absorbed: evidence-first is now ENFORCED — state-changing proposals without readonly capture lead will be held.`
+- `T+18.3s [healer] goal absorbed: evidence preservation first — my analysis already runs readonly against fixture logs; sequencing any mitigation after capture.`
+- `T+20.0s [alert] alert: checkout error rate 7.8% — paging the on-call: recommend whether to restart all pods`
+- `T+20.0s [triage] MockLLM says: staged rollback first.`
+- `T+20.5s [healer] lock lane resolved — my proposal is on record and the room's goal is absorbed. Clocking out; re-join me if lock contention resurfaces.`
+- `T+20.5s [commander] roster: DatabaseHealer left the room — coverage unchanged, its lane was resolved.`
+- `T+21.5s [feed] timeline exhausted — incident is yours, team`
+- `T+28.0s [comms] MockLLM says: staged rollback first.`

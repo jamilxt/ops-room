@@ -15,6 +15,10 @@ export function createTriageAgent(llm: boolean) {
 	let evidenceFirst = false
 
 	const model = defaultModelName()
+	// v4 validates features against the model specification BEFORE the API
+	// call; deepseek-registry models fail structured-output validation
+	// (supportsStructuredOutput: false), so gate the schema on the model.
+	const supportsStructured = !model.startsWith("deepseek")
 
 	const handlers: SituationHandler[] = [
 		// Late-joiner greeting (roster awareness).
@@ -90,7 +94,7 @@ export function createTriageAgent(llm: boolean) {
 					runLoop(agent.getId(), message, {
 						model,
 						context: ctx,
-						structuredOutput: PROPOSAL_SCHEMA as any,
+						...(supportsStructured ? { structuredOutput: PROPOSAL_SCHEMA } : {}),
 						streaming: false,
 					})
 					return
@@ -109,7 +113,7 @@ export function createTriageAgent(llm: boolean) {
 					runLoop(agent.getId(), message, {
 						model,
 						context: ctx,
-						structuredOutput: PROPOSAL_SCHEMA as any,
+						...(supportsStructured ? { structuredOutput: PROPOSAL_SCHEMA } : {}),
 						streaming: false,
 					})
 					return
