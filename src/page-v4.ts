@@ -145,6 +145,13 @@ header{display:flex;align-items:center;gap:12px;padding:10px 20px;border-bottom:
 @keyframes cardpop{from{opacity:0;transform:translateY(6px)}}
 @media (prefers-reduced-motion: reduce){.row,.live-pill.waiting,.live-pill.live .pulsing-dot{animation:none}}
 
+/* Human-pause state: room visibly "holds" while awaiting the on-call decision.
+   Agents grey out (still rowing — readonly evidence work continues by design)
+   but the pause is impossible to miss. Removed on live/idle/summary. */
+body.awaiting #nav{opacity:.35;transition:opacity .3s}
+body.awaiting #nav .agent{pointer-events:none}
+body.awaiting .brand-title:after{content:" — awaiting on-call";color:var(--amber);font-weight:600;font-size:12px}
+
 .card{flex:1;background:var(--pane);border:1px solid var(--line);border-radius:10px;padding:12px 16px;box-shadow:var(--shadow-sm);display:flex;flex-direction:column;gap:7px;transition:border-color .2s,box-shadow .2s;min-width:0}
 .card:hover{border-color:var(--primary);box-shadow:var(--shadow-md)}
 
@@ -716,6 +723,7 @@ function render(line){
 function reset(){
  pending=null;msgCount=0;agentFilter=null;categoryFilter="all"
  countSafety=0;countEvidence=0;countTelemetry=0
+ document.body.classList.remove("awaiting")
  guardCount=0
  const gBtn=document.getElementById("guard-badge")
  if(gBtn){gBtn.style.display="none";gBtn.textContent="0 audits"}
@@ -768,9 +776,9 @@ function start(){
   let d;try{d=JSON.parse(ev.data)}catch(e){return}
   if(d.type==="row")render(d.line)
   else if(d.type==="guard")renderGuard(d.line,d.blocked)
-  else if(d.type==="escalation"){setStatus("waiting for you","waiting");addEscalation(d.text)}
+  else if(d.type==="escalation"){setStatus("waiting for you","waiting");addEscalation(d.text);document.body.classList.add("awaiting")}
   else if(d.type==="reset")reset()
-  else if(d.type==="state"){if(d.value==="live"&&!pending)setStatus("live","live");else if(d.value==="idle")setStatus("idle","idle")}
+  else if(d.type==="state"){if(d.value==="live"&&!pending){setStatus("live","live");document.body.classList.remove("awaiting")}else if(d.value==="idle"){setStatus("idle","idle");document.body.classList.remove("awaiting")}}
   else if(d.type==="summary"){render("");addRecap(d.sig,d.findings,d.challenges);setStatus("idle","idle")}
   else if(d.type==="hello"){const mt=document.getElementById("mode-tag");if(mt)mt.textContent=d.mode}
  }
