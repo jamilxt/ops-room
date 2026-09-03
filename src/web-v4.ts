@@ -145,6 +145,21 @@ async function handler(req: IncomingMessage, res: ServerResponse): Promise<void>
 	} else if (url === "/agents") {
 		res.writeHead(200, { "Content-Type": "application/json" })
 		res.end(JSON.stringify(AGENT_INFO))
+	} else if (url === "/timeline" && req.method === "GET") {
+		const fs = await import("node:fs/promises")
+		const path = await import("node:path")
+		const timelinePath = path.resolve(process.cwd(), "incident-timeline.md")
+		try {
+			const content = await fs.readFile(timelinePath, "utf-8")
+			res.writeHead(200, {
+				"Content-Type": "text/markdown; charset=utf-8",
+				"Content-Disposition": 'attachment; filename="incident-timeline.md"',
+			})
+			res.end(content)
+		} catch {
+			res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" })
+			res.end("No incident timeline recorded yet.")
+		}
 	} else {
 		res.writeHead(404).end()
 	}

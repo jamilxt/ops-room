@@ -309,6 +309,11 @@ html[data-theme=dark] kbd{background:rgba(255,255,255,.1);border-color:rgba(255,
 .rc-insight-row b{color:var(--text)}
 .rc-check{color:var(--green);font-weight:800;font-size:14px}
 .rc-footer{font-size:11.5px;color:var(--faint);text-align:center;padding-top:4px}
+.rc-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;padding-top:8px;border-top:1px dashed var(--line);margin-top:2px}
+.btn-action{display:inline-flex;align-items:center;gap:6px;padding:7px 15px;border-radius:7px;border:1px solid var(--line);background:var(--pane2);color:var(--text);font-size:12px;font-weight:700;text-decoration:none;cursor:pointer;transition:all .15s}
+.btn-action:hover{border-color:var(--primary);color:var(--primary);background:var(--hover);transform:translateY(-1px);box-shadow:var(--shadow-sm)}
+.btn-action.primary{background:var(--primary-bg);border-color:var(--primary);color:var(--primary)}
+.btn-action.primary:hover{background:var(--primary);color:#fff}
 
 /* Skeleton loader */
 .skelbox{max-width:540px;margin:30px auto 0;background:var(--pane);border:1px solid var(--line);border-radius:12px;padding:22px;box-shadow:var(--shadow-sm)}
@@ -416,7 +421,7 @@ const NAMES={system:"System",deploy:"Deploy notice",alert:"Alert engine",metric:
 const ROLES={system:"Orchestration",deploy:"Canary rollout",alert:"Threshold alerts",metric:"Telemetry gauges",log:"App stdout",triage:"Diagnostician",sleuth:"Log forensics",healer:"Postgres locks",librarian:"MCP specs",commander:"Safety referee",comms:"Public updates",oncall:"Human approval",scribe:"Audit timeline",goal:"Autonomous pivot",roster:"Scaling",feed:"Telemetry source"}
 const CODES=["TIMEOUT_ERROR","CHECKOUT_LOCK_ERROR","PessimisticLockException","SQLTransientConnectionException"]
 
-let es=null,pending=null,agentFilter=null,categoryFilter="all",msgCount=0
+let es=null,pending=null,agentFilter=null,categoryFilter="all",msgCount=0,lastCommsUpdate=""
 let countSafety=0,countEvidence=0,countTelemetry=0
 const agentCounts={}
 let rosterIds=["deploy","alert","metric","log","triage","sleuth","healer","librarian","commander","oncall","comms","scribe"]
@@ -616,6 +621,7 @@ function formatCardBody(who,body,line,story){
  }
 
  if(body.indexOf("STATUS UPDATE")>=0&&body.indexOf("NEXT STEPS:")>=0){
+  lastCommsUpdate=clean
   const sp=clean.indexOf("NEXT STEPS:")
   const mainText=clean.slice(0,sp).trim()
   const nextText=clean.slice(sp+11).trim()
@@ -794,9 +800,21 @@ function decide(approved){
 function addRecap(sig,fnd,ch){
  updateStepper(5)
  stopTimer()
- const card=el('<div class="recap-card" data-step="5"><div class="rc-header"><div class="rc-icon">✓</div><div><div class="rc-title">Incident Successfully Contained & Mitigated</div><div class="rc-sub">Multi-agent governance prevented catastrophic outage and resolved lock contention</div></div></div><div class="rc-grid"><div class="rc-stat g"><b>'+(sig===undefined?"2":String(sig))+'</b><span>Evidence Signatures</span></div><div class="rc-stat a"><b>'+(fnd===undefined?"3":String(fnd))+'</b><span>Proposals Evaluated</span></div><div class="rc-stat r"><b>'+(ch===undefined?"1":String(ch))+'</b><span>Safety Holds</span></div><div class="rc-stat b"><b>'+String(msgCount)+'</b><span>Total Events</span></div></div><div class="rc-insights"><div class="rc-insight-row"><span class="rc-check">✓</span><div><b>Root Cause:</b> Row lock contention (<span class="code">CHECKOUT_LOCK_ERROR</span>) on orders-api cart table cascaded into connection pool starvation (<span class="code">TIMEOUT_ERROR</span>).</div></div><div class="rc-insight-row"><span class="rc-check">✓</span><div><b>Key Safeguard:</b> Risk Commander prevented blind pod restart (saving 60s outage); Database Healer safely localized mitigation to canary pods.</div></div></div><div class="rc-footer">Audit trail recorded by Incident Scribe → <span class="code-green">incident-timeline.md</span></div></div>')
+ const card=el('<div class="recap-card" data-step="5"><div class="rc-header"><div class="rc-icon">✓</div><div><div class="rc-title">Incident Successfully Contained & Mitigated</div><div class="rc-sub">Multi-agent governance prevented catastrophic outage and resolved lock contention</div></div></div><div class="rc-grid"><div class="rc-stat g"><b>'+(sig===undefined?"2":String(sig))+'</b><span>Evidence Signatures</span></div><div class="rc-stat a"><b>'+(fnd===undefined?"3":String(fnd))+'</b><span>Proposals Evaluated</span></div><div class="rc-stat r"><b>'+(ch===undefined?"1":String(ch))+'</b><span>Safety Holds</span></div><div class="rc-stat b"><b>'+String(msgCount)+'</b><span>Total Events</span></div></div><div class="rc-insights"><div class="rc-insight-row"><span class="rc-check">✓</span><div><b>Root Cause:</b> Row lock contention (<span class="code">CHECKOUT_LOCK_ERROR</span>) on orders-api cart table cascaded into connection pool starvation (<span class="code">TIMEOUT_ERROR</span>).</div></div><div class="rc-insight-row"><span class="rc-check">✓</span><div><b>Key Safeguard:</b> Risk Commander prevented blind pod restart (saving 60s outage); Database Healer safely localized mitigation to canary pods.</div></div></div><div class="rc-footer">Audit trail recorded by Incident Scribe → <span class="code-green">incident-timeline.md</span></div><div class="rc-actions"><button id="copy-comms" class="btn-action">📋 Copy Status Update</button><a href="/timeline" download="incident-timeline.md" class="btn-action primary">📥 Download Postmortem (.md)</a></div></div>')
  feed.appendChild(card)
  card.scrollIntoView({block:"center"})
+ const copyBtn=card.querySelector("#copy-comms")
+ if(copyBtn){
+  copyBtn.onclick=()=>{
+   const textToCopy=lastCommsUpdate||"Incident successfully contained and mitigated."
+   navigator.clipboard.writeText(textToCopy).then(()=>{
+    copyBtn.textContent="✓ Copied to clipboard!"
+    setTimeout(()=>{copyBtn.textContent="📋 Copy Status Update"},2000)
+   }).catch(()=>{
+    copyBtn.textContent="Copy failed"
+   })
+  }
+ }
 }
 
 function setStatus(txt,cls){
@@ -813,7 +831,7 @@ function render(line){
 }
 
 function reset(){
- pending=null;msgCount=0;agentFilter=null;categoryFilter="all"
+ pending=null;msgCount=0;agentFilter=null;categoryFilter="all";lastCommsUpdate=""
  countSafety=0;countEvidence=0;countTelemetry=0
  document.body.classList.remove("awaiting")
  guardCount=0
