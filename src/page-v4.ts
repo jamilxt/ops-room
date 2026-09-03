@@ -261,6 +261,7 @@ body.awaiting .brand-title:after{content:" — awaiting on-call";color:var(--amb
 .btn-approve:hover{filter:brightness(1.1);transform:translateY(-1px)}
 .btn-reject{background:transparent;border:1px solid var(--red);color:var(--red)}
 .btn-reject:hover{background:var(--red-bg)}
+button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
 kbd{font-family:ui-monospace,Menlo,monospace;background:rgba(0,0,0,.08);border:1px solid rgba(0,0,0,.15);border-bottom-width:2px;border-radius:4px;padding:0 5px;font-size:11px}
 html[data-theme=dark] kbd{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.2)}
 
@@ -368,7 +369,7 @@ html[data-theme=dark] kbd{background:rgba(255,255,255,.1);border-color:rgba(255,
   </div>
  </div>
 
- <div id="feedwrap"><div id="feed">
+ <div id="feedwrap"><div id="feed" role="feed" aria-label="Incident Event Feed" aria-live="polite">
   <div class="skelbox">
    <div class="skelline w1"></div>
    <div class="skelline w2"></div>
@@ -763,9 +764,9 @@ function renderGuard(line,blocked){
  guardCount++
  const gb=document.getElementById("guard-badge")
  if(gb){gb.textContent=guardCount+(blocked?" blocked":" audits");gb.style.display="inline-flex"}
- const who=(line.match(/-> ([\w.]+)/)||[])[1]||""
  const isBlocked=!!blocked
- const strip=el('<div class="guard-strip '+(isBlocked?"guard-blocked":"guard-pass")+'"><span class="guard-icon">'+(isBlocked?"🛡":"👁")+'</span><span class="guard-text">'+esc(line.replace(/^\[interceptor\] /,""))+'</span></div>')
+ const cleanText=line.indexOf("[interceptor] ")===0?line.slice(14):line
+ const strip=el('<div class="guard-strip '+(isBlocked?"guard-blocked":"guard-pass")+'"><span class="guard-icon">'+(isBlocked?"🛡":"👁")+'</span><span class="guard-text">'+esc(cleanText)+'</span></div>')
  feed.appendChild(strip)
  strip.scrollIntoView({behavior:"smooth",block:"nearest"})
 }
