@@ -109,7 +109,8 @@ header{display:flex;align-items:center;gap:12px;padding:10px 20px;border-bottom:
 
 /* Incident Lifecycle Stepper */
 .stepper{display:flex;align-items:center;padding:10px 20px;background:var(--pane);border-bottom:1px solid var(--line);gap:8px;overflow-x:auto}
-.step{display:flex;align-items:center;gap:7px;padding:4px 10px;border-radius:8px;background:var(--pane2);border:1px solid var(--line);font-size:11.5px;color:var(--dim);transition:all .2s;white-space:nowrap}
+.step{display:flex;align-items:center;gap:7px;padding:4px 10px;border-radius:8px;background:var(--pane2);border:1px solid var(--line);font-size:11.5px;color:var(--dim);transition:all .2s;white-space:nowrap;cursor:pointer;user-select:none}
+.step:hover{border-color:var(--primary);color:var(--text);transform:translateY(-1px);box-shadow:var(--shadow-sm)}
 .step-num{width:18px;height:18px;border-radius:50%;background:var(--line);color:var(--dim);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800}
 .step-name{font-weight:600}
 .step-arrow{color:var(--faint);font-size:10px;margin:0 -2px}
@@ -117,6 +118,8 @@ header{display:flex;align-items:center;gap:12px;padding:10px 20px;border-bottom:
 .step.active .step-num{background:var(--primary);color:#fff}
 .step.done{background:var(--green-bg);border-color:var(--green-border);color:var(--text)}
 .step.done .step-num{background:var(--green);color:#fff}
+@keyframes phasePulse{0%{box-shadow:0 0 0 0 rgba(2,132,199,.7)}70%{box-shadow:0 0 0 8px rgba(2,132,199,0)}100%{box-shadow:none}}
+.highlight-phase{animation:phasePulse 1.2s ease-out!important}
 
 /* Filter & Stats Bar */
 .control-bar{display:flex;align-items:center;gap:12px;padding:8px 20px;background:var(--pane2);border-bottom:1px solid var(--line);flex-wrap:wrap}
@@ -434,6 +437,28 @@ function updateStepper(stepNum){
  }
 }
 
+function jumpToStep(stepNum){
+ const target=feed.querySelector('[data-step="'+stepNum+'"]')
+ if(target){
+  target.scrollIntoView({behavior:"smooth",block:"center"})
+  target.classList.remove("highlight-phase")
+  void target.offsetWidth
+  target.classList.add("highlight-phase")
+  setTimeout(()=>target.classList.remove("highlight-phase"),1500)
+ }
+}
+
+for(let i=1;i<=5;i++){
+ const st=document.getElementById("step-"+i)
+ if(st){
+  st.setAttribute("tabindex","0")
+  st.setAttribute("role","button")
+  st.setAttribute("title","Jump to Phase "+i+" in timeline")
+  st.onclick=()=>jumpToStep(i)
+  st.onkeydown=(e)=>{if(e.key==="Enter"||e.key===" ")jumpToStep(i)}
+ }
+}
+
 function humanLine(body){
  if(body.indexOf("hikaricp.connections.pending=312")>=0)return "All 10 database connections busy; 312 checkout requests stuck waiting in queue"
  if(body.indexOf("p95 4.2s")>=0)return "Checkout page response time surged to 4.2s (baseline: 210ms — a 20x latency degradation)"
@@ -628,11 +653,13 @@ function addRow(line){
  const agentRole=ROLES[who]||""
 
  // Stepper progression
- if(who==="deploy"||who==="alert")updateStepper(1)
- if(who==="sleuth"||body.indexOf("error signature")>=0)updateStepper(2)
- if(who==="triage"||who==="healer"||line.indexOf("HOLD")>=0||who==="librarian")updateStepper(3)
- if(line.indexOf("ESCALATION")>=0||who==="oncall")updateStepper(4)
- if(line.indexOf("STATUS UPDATE")>=0)updateStepper(5)
+ let rowStep=1
+ if(who==="deploy"||who==="alert")rowStep=1
+ else if(who==="sleuth"||body.indexOf("error signature")>=0)rowStep=2
+ else if(who==="triage"||who==="healer"||line.indexOf("HOLD")>=0||who==="librarian"||who==="commander"||who==="goal")rowStep=3
+ else if(line.indexOf("ESCALATION")>=0||who==="oncall")rowStep=4
+ else if(line.indexOf("STATUS UPDATE")>=0||who==="comms")rowStep=5
+ updateStepper(rowStep)
 
  // HUD updates
  if(who==="goal"||line.indexOf("goal absorbed")>=0||line.indexOf("GOAL UPDATE absorbed")>=0){
@@ -643,7 +670,7 @@ function addRow(line){
   }
  }
 
- const r=el('<div class="row" data-agent="'+who+'" data-cat="'+story.cat+'"><div class="card cat-'+story.cat+'"><div class="card-header"><span class="card-avatar">'+avatar+'</span><div class="card-author"><span>'+esc(agentName)+'</span><span class="card-role">'+esc(agentRole)+'</span></div><span class="badge '+story.badge+'">'+esc(story.label)+'</span><time class="time-badge" title="Incident time: '+ts+' · Local clock: '+clockTime+'"><span class="t-rel">'+ts+'</span><span class="t-sep">·</span><span class="t-clock">'+clockTime+'</span></time></div><div class="headline '+(story.badge==='ev'?'evidence':(story.badge==='hold'?'hold':(story.badge==='esc'?'escalation':'')))+'">'+esc(human)+'</div>'+(chips?'<div class="prop-chips">'+chips+'</div>':'')+formattedContent+(why?'<div class="why-box"><span class="why-icon">💡</span><span>'+esc(why)+'</span></div>':'')+'<div class="raw-drawer"><button class="rawbtn"><span>▸ Technical line</span></button><pre class="rawpre"></pre></div></div></div>')
+ const r=el('<div class="row" data-step="'+rowStep+'" data-agent="'+who+'" data-cat="'+story.cat+'"><div class="card cat-'+story.cat+'"><div class="card-header"><span class="card-avatar">'+avatar+'</span><div class="card-author"><span>'+esc(agentName)+'</span><span class="card-role">'+esc(agentRole)+'</span></div><span class="badge '+story.badge+'">'+esc(story.label)+'</span><time class="time-badge" title="Incident time: '+ts+' · Local clock: '+clockTime+'"><span class="t-rel">'+ts+'</span><span class="t-sep">·</span><span class="t-clock">'+clockTime+'</span></time></div><div class="headline '+(story.badge==='ev'?'evidence':(story.badge==='hold'?'hold':(story.badge==='esc'?'escalation':'')))+'">'+esc(human)+'</div>'+(chips?'<div class="prop-chips">'+chips+'</div>':'')+formattedContent+(why?'<div class="why-box"><span class="why-icon">💡</span><span>'+esc(why)+'</span></div>':'')+'<div class="raw-drawer"><button class="rawbtn"><span>▸ Technical line</span></button><pre class="rawpre"></pre></div></div></div>')
 
  r.querySelector(".rawpre").textContent=line.trim()
  const rb=r.querySelector(".rawbtn")
@@ -686,7 +713,7 @@ function addRow(line){
 
 function addEscalation(text){
  updateStepper(4)
- pending=el('<div class="escalation-card"><div class="esc-head"><div class="esc-icon">⚠️</div><div><div class="esc-title">Human Decision Required — Safety Gate Triggered</div><div class="esc-sub">The AI agents cannot proceed with state changes without on-call authorization</div></div></div><div class="esc-body"></div><div class="esc-actions"><button id="yes" class="btn-esc btn-approve"><kbd>y</kbd> Approve Mitigation</button><button id="no" class="btn-esc btn-reject"><kbd>n</kbd> Reject (Demand Safer Fix)</button></div></div>')
+ pending=el('<div class="escalation-card" data-step="4"><div class="esc-head"><div class="esc-icon">⚠️</div><div><div class="esc-title">Human Decision Required — Safety Gate Triggered</div><div class="esc-sub">The AI agents cannot proceed with state changes without on-call authorization</div></div></div><div class="esc-body"></div><div class="esc-actions"><button id="yes" class="btn-esc btn-approve"><kbd>y</kbd> Approve Mitigation</button><button id="no" class="btn-esc btn-reject"><kbd>n</kbd> Reject (Demand Safer Fix)</button></div></div>')
  pending.querySelector(".esc-body").textContent=text
  feed.appendChild(pending)
  pending.scrollIntoView({block:"center"})
@@ -703,7 +730,7 @@ function decide(approved){
 
 function addRecap(sig,fnd,ch){
  updateStepper(5)
- const card=el('<div class="recap-card"><div class="rc-header"><div class="rc-icon">✓</div><div><div class="rc-title">Incident Successfully Contained & Mitigated</div><div class="rc-sub">Multi-agent governance prevented catastrophic outage and resolved lock contention</div></div></div><div class="rc-grid"><div class="rc-stat g"><b>'+(sig===undefined?"2":String(sig))+'</b><span>Evidence Signatures</span></div><div class="rc-stat a"><b>'+(fnd===undefined?"3":String(fnd))+'</b><span>Proposals Evaluated</span></div><div class="rc-stat r"><b>'+(ch===undefined?"1":String(ch))+'</b><span>Safety Holds</span></div><div class="rc-stat b"><b>'+String(msgCount)+'</b><span>Total Events</span></div></div><div class="rc-insights"><div class="rc-insight-row"><span class="rc-check">✓</span><div><b>Root Cause:</b> Row lock contention (<span class="code">CHECKOUT_LOCK_ERROR</span>) on orders-api cart table cascaded into connection pool starvation (<span class="code">TIMEOUT_ERROR</span>).</div></div><div class="rc-insight-row"><span class="rc-check">✓</span><div><b>Key Safeguard:</b> Risk Commander prevented blind pod restart (saving 60s outage); Database Healer safely localized mitigation to canary pods.</div></div></div><div class="rc-footer">Audit trail recorded by Incident Scribe → <span class="code-green">incident-timeline.md</span></div></div>')
+ const card=el('<div class="recap-card" data-step="5"><div class="rc-header"><div class="rc-icon">✓</div><div><div class="rc-title">Incident Successfully Contained & Mitigated</div><div class="rc-sub">Multi-agent governance prevented catastrophic outage and resolved lock contention</div></div></div><div class="rc-grid"><div class="rc-stat g"><b>'+(sig===undefined?"2":String(sig))+'</b><span>Evidence Signatures</span></div><div class="rc-stat a"><b>'+(fnd===undefined?"3":String(fnd))+'</b><span>Proposals Evaluated</span></div><div class="rc-stat r"><b>'+(ch===undefined?"1":String(ch))+'</b><span>Safety Holds</span></div><div class="rc-stat b"><b>'+String(msgCount)+'</b><span>Total Events</span></div></div><div class="rc-insights"><div class="rc-insight-row"><span class="rc-check">✓</span><div><b>Root Cause:</b> Row lock contention (<span class="code">CHECKOUT_LOCK_ERROR</span>) on orders-api cart table cascaded into connection pool starvation (<span class="code">TIMEOUT_ERROR</span>).</div></div><div class="rc-insight-row"><span class="rc-check">✓</span><div><b>Key Safeguard:</b> Risk Commander prevented blind pod restart (saving 60s outage); Database Healer safely localized mitigation to canary pods.</div></div></div><div class="rc-footer">Audit trail recorded by Incident Scribe → <span class="code-green">incident-timeline.md</span></div></div>')
  feed.appendChild(card)
  card.scrollIntoView({block:"center"})
 }
