@@ -9,6 +9,7 @@ import {
 	type SituationProcessor,
 	type InferenceInput,
 } from "@mozaik-ai/core"
+import { createIncidentInterceptor } from "./incident-interceptor-v4"
 
 /**
  * v4 runtime module. defineRuntime() returns per-module functions that are
@@ -47,9 +48,6 @@ export function runLoopGated(
 	signaturesSeen: string[],
 	onBlocked?: (toolName: string) => void,
 ): ReturnType<typeof runLoop> {
-	// Lazy import to avoid a cycle: interceptor imports nothing from here.
-	// eslint-disable-next-line @typescript-eslint/no-var-requires
-	const { createIncidentInterceptor } = require("./incident-interceptor-v4") as typeof import("./incident-interceptor-v4")
 	return runLoop(agentId, message, opts, createIncidentInterceptor(agentId, signaturesSeen, onBlocked))
 }
 

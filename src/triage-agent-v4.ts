@@ -1,7 +1,8 @@
 import { SituationSpecification, UserMessageItem, createAgent, type Agent, type SituationContext, type SituationHandler } from "@mozaik-ai/core"
-import { sendMessage, runLoop, runLoopGated, whenMessageFrom, whenParticipantJoins, whenExternalEvent, processorFor, eventProcessorFor } from "./runtime-v4"
+import { sendMessage, runLoop, whenMessageFrom, whenParticipantJoins, whenExternalEvent, processorFor, eventProcessorFor } from "./runtime-v4"
 import { defaultModelName } from "./model-default.js"
 import { PROPOSAL_SCHEMA, normalizeProposal, renderProposalLine } from "./proposal-protocol"
+import { createIncidentInterceptor } from "./incident-interceptor-v4"
 
 /**
  * TriageAgent v4. Reacts to alerts and metrics from the feed. In LLM mode it
@@ -24,6 +25,16 @@ export function createTriageAgent(llm: boolean) {
 	// call; deepseek-registry models fail structured-output validation
 	// (supportsStructuredOutput: false), so gate the schema on the model.
 	const supportsStructured = !model.startsWith("deepseek")
+
+	// The interceptor instance shared by runLoopGated AND the deterministic
+	// demo beats (attemptRestartThroughInterceptor) — one audit path, one
+	// stats block, so the web console's guard badge counts both.
+	const interceptor = createIncidentInterceptor("TriageAgent", confirmedSignatures)
+	// runLoopGated uses the SAME interceptor instance, so LLM-mode tool calls
+	// and the deterministic demo beats share one audit path.
+	function runLoopGatedShared(...args: Parameters<typeof runLoop>) {
+		return runLoop(args[0], args[1], args[2], interceptor)
+	}
 
 	const handlers: SituationHandler[] = [
 		// Late-joiner greeting (roster awareness).
@@ -100,12 +111,12 @@ export function createTriageAgent(llm: boolean) {
 						return
 					}
 					ctx.addContextItems([UserMessageItem.create(message)])
-					runLoopGated(agent.getId(), message, {
+					runLoopGatedShared(agent.getId(), message, {
 						model,
 						context: ctx,
 						...(supportsStructured ? { structuredOutput: PROPOSAL_SCHEMA } : {}),
 						streaming: false,
-					}, confirmedSignatures)
+					})
 					return
 				}
 
@@ -119,12 +130,12 @@ export function createTriageAgent(llm: boolean) {
 						evidence.length = 0
 					}
 					ctx.addContextItems([UserMessageItem.create(message)])
-					runLoopGated(agent.getId(), message, {
+					runLoopGatedShared(agent.getId(), message, {
 						model,
 						context: ctx,
 						...(supportsStructured ? { structuredOutput: PROPOSAL_SCHEMA } : {}),
 						streaming: false,
-					}, confirmedSignatures)
+					})
 					return
 				}
 
@@ -157,5 +168,5 @@ Output contract: ALWAYS reply with the proposal JSON object (schema provided). F
 		handlers,
 	})
 
-	return { agent, findings }
+	return { agent, findings, interceptor, confirmedSignatures }
 }

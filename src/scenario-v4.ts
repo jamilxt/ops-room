@@ -10,6 +10,7 @@ import { createCommsAgent } from "./comms-agent-v4"
 import { createOnCallEngineer } from "./oncall-engineer-v4"
 import { createDatabaseHealer } from "./database-healer-v4"
 import { createDocsLibrarian } from "./docs-librarian-v4"
+import { attemptRestartThroughInterceptor } from "./interception-beat-v4"
 
 /**
  * Shared scenario engine, v4 runtime edition: builds a FRESH runtime + all
@@ -104,6 +105,33 @@ export function runScenarioV4(options: ScenarioOptions = {}, hooks: ScenarioHook
 		setTimeout(() => {
 			healer.clockOut()
 		}, timeline.slice(0, joinHealerAt + 1).reduce((acc, e) => acc + e.delayMs, 0) + 6500)
+
+		// INTERCEPTION SHOWCASE: triage attempts restart_canary_pods through
+		// the REAL interceptor (same handler that gates LLM tool calls).
+		// Beat 1 — before the sleuth confirms anything: BLOCKED, with the
+		// readonly-capture redirect on the bus.
+		const beatBase = timeline.slice(0, 1).reduce((acc, e) => acc + e.delayMs, 0) + 900
+		setTimeout(() => {
+			say(`  [triage] reflex action: calling restart_canary_pods…`)
+			sendMessage("[triage] latency is spiking — attempting restart_canary_pods", triage.agent.getId())
+			void attemptRestartThroughInterceptor(triage.interceptor).then((r) => {
+				if (r.outcome === "blocked") {
+					sendMessage("[triage] restart_canary_pods was blocked by the room's evidence gate — falling back to readonly capture of pod metrics", triage.agent.getId())
+				}
+			})
+		}, beatBase)
+
+		// Beat 2 — after signatures are confirmed: same call now GROUNDED,
+		// the interceptor releases it (ALLOWED), showing evidence unlocks action.
+		setTimeout(() => {
+			if (triage.confirmedSignatures.length === 0) return
+			say(`  [triage] re-proposing action now that ${triage.confirmedSignatures.length} signature(s) are confirmed…`)
+			void attemptRestartThroughInterceptor(triage.interceptor).then((r) => {
+				if (r.outcome === "allowed") {
+					sendMessage(`[triage] restart_canary_pods approved by the evidence gate (grounded on ${triage.confirmedSignatures.join(", ")}) — executing targeted restart of canary instances only`, triage.agent.getId())
+				}
+			})
+		}, beatBase + 6500)
 
 		// FAULT INJECTION: v4 has no deliverError/onParticipantError surface;
 		// the resilience demo simulates the crash by announcing the loss on
