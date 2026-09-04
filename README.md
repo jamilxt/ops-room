@@ -172,3 +172,18 @@ scripts/
 - **A human has the last word.** When a revised proposal still cites no evidence — or a teammate goes down mid-incident — the commander ESCALATES and the on-call engineer decides: at the keyboard (CLI) or with buttons in the web console.
 - **One engine, two frontends.** `scenario-v4.ts` drives both the CLI and the web console — same bus, same participants, same evidence gates; only the output sink differs. Machine tags and error codes stay stable, so the negotiating agents don't care and Java-fluent humans do.
 - **Trade-offs we consciously made.** Not using `ModelContextRepository` — the shared bus plus the `confirmedSignatures` array already give the room common knowledge, and that's the demo's story. Not using token streaming — single-shot inference keeps timing deterministic for the demo. Cloud observability is per-loop-session in v4 (one session per agent turn) — we surface the equivalent view in our own :8788 console instead. Every console line is mirrored to the browser log via `line-tap-v4.ts`, so nothing happens off-screen.
+
+### Where OpsRoom sits in Mozaik's own story
+
+Mozaik's launch essays ("Agent Interoperability Is the Next Big Thing", "The Best Multi-Agent Architecture of 2026 Was Designed in 1975") define the runtime's doctrine:
+
+> interoperability = concurrency × awareness × adaptability
+
+and name **enforcement** as the open problem between capability and trust: pushed to the extreme, adaptive agents "agree each other into error", and the machine-checked layer that holds the line is "still unwritten for the general case".
+
+OpsRoom is a working answer for one domain — incident response:
+
+- **Blackboard, literally.** The room is HEARSAY-II's architecture with LLM experts: the sleuth writes signatures on the shared bus, the healer wakes when lock evidence appears, the commander challenges what lacks grounding — no orchestrator, no pipeline.
+- **The triangle, scored.** Concurrency: 9 agents, non-blocking. Awareness: `@mentions` and bus observation — the healer joins mid-incident and clocks out without collapsing anything (their named "join and leave" requirement, demoed). Adaptability: triage rewrites its proposal under HOLD; the room re-goals mid-run on a typed `goal-update`.
+- **The enforcement layer.** The interceptor is exactly the machine check their essays call for: state-changing tool calls execute only with confirmed shared evidence, and the human has the last word via escalation.
+- **Trade-offs we consciously made.** Not using `ModelContextRepository` — the shared bus plus the `confirmedSignatures` array already give the room common knowledge, and that's the demo's story. Not using token streaming — single-shot inference keeps timing deterministic for the demo. Cloud observability is per-loop-session in v4 (one session per agent turn) — we surface the equivalent view in our own :8788 console instead. Every console line is mirrored to the browser log via `line-tap-v4.ts`, so nothing happens off-screen.
