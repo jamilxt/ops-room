@@ -1,3 +1,4 @@
+import "dotenv/config"
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
 import { runScenarioV4 } from "./scenario-v4"
 import { PAGE } from "./page-v4"
@@ -20,6 +21,22 @@ let busy = false
 let startedOnce = false
 let pendingDecision: ((answer: string) => void) | null = null
 let guardBlockedTotal = 0
+// Replay buffer: everything broadcast since the last reset, so a page refresh
+// mid-run (or after a finished run) re-renders the feed instead of showing an
+// empty war room — and can never be mistaken for a fresh demo restart.
+let replay: unknown[] = []
+
+function record(payload: unknown): void {
+	replay.push(payload)
+	// Keep the buffer bounded: header rows + guard strips + escalations matter
+	// most; 4000 rows is far beyond a full deterministic or LLM run.
+	if (replay.length > 4000) replay.splice(0, replay.length - 4000)
+}
+
+function broadcast(payload: unknown): void {
+	if ((payload as { type?: string }).type !== "hello") record(payload)
+	for (const res of events) res.write(`data: ${JSON.stringify(payload)}\n\n`)
+}
 
 // ---- runtime config (set from the web console, memory-only) -----------------
 // No API key is ever written to disk or served back to the client — POST /config
@@ -51,16 +68,13 @@ const AGENT_INFO: AgentSpec[] = [
 	{ id: "scribe", name: "Scribe", role: "records everything", group: "Support" },
 ]
 
-function broadcast(payload: unknown): void {
-	for (const res of events) res.write(`data: ${JSON.stringify(payload)}\n\n`)
-}
-
 async function startRun(): Promise<void> {
 	if (busy) {
 		broadcast({ type: "row", line: "[system] previous run still finishing — hold on…" })
 		return
 	}
 	busy = true
+	replay = []
 	broadcast({ type: "state", value: "live" })
 	broadcast({ type: "reset" })
 	guardBlockedTotal = 0
@@ -137,6 +151,10 @@ async function handler(req: IncomingMessage, res: ServerResponse): Promise<void>
 			type: "hello",
 			mode: modeLabel(),
 		})
+		// Replay: a refreshed (or newly opened) page re-renders the current or
+		// last run instead of an empty feed. The demo itself is NEVER restarted
+		// by a refresh — replay is read-only history.
+		for (const payload of replay) res.write(`data: ${JSON.stringify(payload)}\n\n`)
 		// Auto-run is intentionally off: judges start the demo themselves via
 		// the ▶ button. Keeps visits cheap and avoids the stuck "connecting"
 		// first impression if SSE hiccups during page load.

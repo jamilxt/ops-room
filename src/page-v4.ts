@@ -935,6 +935,7 @@ function addRow(line){
 function addEscalation(text){
  updateStepper(4)
  pauseTimer()
+ userScrolledUp=false
  pending=el('<div class="escalation-card" data-step="4"><div class="esc-head"><div class="esc-icon">⚠️</div><div><div class="esc-title">Human Decision Required — Safety Gate Triggered</div><div class="esc-sub">The AI agents cannot proceed with state changes without on-call authorization</div></div></div><div class="esc-body"></div><div class="esc-actions"><button id="yes" class="btn-esc btn-approve"><kbd>y</kbd> Approve Mitigation</button><button id="no" class="btn-esc btn-reject"><kbd>n</kbd> Reject (Demand Safer Fix)</button></div></div>')
  pending.querySelector(".esc-body").textContent=text
  feed.appendChild(pending)
@@ -1085,7 +1086,7 @@ function start(){
   let d;try{d=JSON.parse(ev.data)}catch(e){return}
   if(d.type==="row")render(d.line)
   else if(d.type==="guard")renderGuard(d.line,d.blocked)
-  else if(d.type==="escalation"){setStatus("waiting for you","waiting");addEscalation(d.text);document.body.classList.add("awaiting");escalationHoldAt=Date.now();recordActivity("oncall")}
+  else if(d.type==="escalation"){setStatus("waiting for you","waiting");if(!pending)addEscalation(d.text);document.body.classList.add("awaiting");escalationHoldAt=Date.now();recordActivity("oncall")}
   else if(d.type==="reset")reset()
   else if(d.type==="state"){if(d.value==="live"&&!pending){if(escalationHoldAt!==null){escalationHoldSeconds+=(Date.now()-escalationHoldAt)/1000;escalationHoldAt=null}setStatus("live","live");document.body.classList.remove("awaiting");resumeTimer()}else if(d.value==="idle"){setStatus("idle","idle");document.body.classList.remove("awaiting");stopTimer()}}
   else if(d.type==="summary"){render("");addRecap(d.sig,d.findings,d.challenges,d.holds);setStatus("idle","idle")}
