@@ -24,8 +24,6 @@ CLI variant: `npm start`.
 > Triage, LogSleuth, RiskCommander, Comms, Scribe, On-call (the human),
 > DatabaseHealer, DocsLibrarian (MCP), and the IncidentFeed.
 
-**[Demo video script →](docs/demo-video-script.md)** — shot-by-shot 2-minute recording plan.
-
 **[V4 migration notes →](docs/V4-MIGRATION.md)** — what the v4 runtime changed and why.
 
 ## What it is
