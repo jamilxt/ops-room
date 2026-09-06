@@ -219,5 +219,5 @@ async function handler(req: IncomingMessage, res: ServerResponse): Promise<void>
 
 createServer(handler).listen(PORT, () => {
 	console.log(`OpsRoom web console → http://localhost:${PORT}`)
-	console.log("(opens straight into a live incident — Restart demo anytime)")
+	console.log("(deterministic demo — press ▶ Start Demo in the console to run)")
 })
