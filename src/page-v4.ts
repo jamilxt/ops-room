@@ -346,6 +346,13 @@ html[data-theme=dark] kbd{background:rgba(255,255,255,.1);border-color:rgba(255,
 .settings-msg.err{color:var(--red)}
 .settings-msg.ok{color:var(--green)}
 .settings-actions{display:flex;justify-content:flex-end;gap:10px}
+.llm-note{color:var(--amber);background:var(--amber-bg);border:1px solid var(--amber-border);border-radius:8px;padding:8px 10px}
+.llm-note a{color:var(--primary);font-weight:700;text-decoration:underline}
+.llm-note .code{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;background:var(--pane2);border:1px solid var(--line);border-radius:5px;padding:1px 5px;word-break:break-all}
+.repo-link{margin-top:auto;padding:12px 16px;border-top:1px solid var(--line);font-size:11.5px}
+.repo-link a{color:var(--dim);font-weight:700;text-decoration:none}
+.repo-link a:hover{color:var(--primary)}
+.repo-sub{font-size:10px;color:var(--faint);margin-top:3px;line-height:1.4}
 </style>
 </head>
 <body>
@@ -358,6 +365,10 @@ html[data-theme=dark] kbd{background:rgba(255,255,255,.1);border-color:rgba(255,
  <div id="nav"></div>
   <div class="help" title="Click any agent to filter. Shortcuts: y (approve), n (reject), r (restart), f (focus)">
    <span><kbd>y</kbd>/<kbd>n</kbd> gate · <kbd>r</kbd> restart · <kbd>f</kbd> focus</span>
+  </div>
+  <div class="repo-link">
+   <a href="https://github.com/jamilxt/ops-room" target="_blank" rel="noopener" title="Source code — clone and run locally with your own OpenAI key">★ github.com/jamilxt/ops-room</a>
+   <div class="repo-sub">built for the JigJoy × daily.dev × Hyperskill hackathon · Mozaik v4</div>
   </div>
 </aside>
 <main>
@@ -390,6 +401,7 @@ html[data-theme=dark] kbd{background:rgba(255,255,255,.1);border-color:rgba(255,
       <button id="mode-llm" class="seg-btn">LLM (real inference)</button>
      </div>
      <div class="settings-hint">Applies from the next <b>Restart Demo</b>. Deterministic needs no key and always tells the same story; LLM mode runs real inference through Mozaik.</div>
+     <div class="settings-hint llm-note" id="llm-note" style="display:none">Heads up: on this public site, LLM mode would use <b>this server's shared key</b> and spend its credits. Better: <a href="https://github.com/jamilxt/ops-room" target="_blank" rel="noopener">clone the repo</a> and run it locally with your own OpenAI key — <span class="code">git clone https://github.com/jamilxt/ops-room &amp;&amp; cd ops-room &amp;&amp; npm install &amp;&amp; npm run web</span></div>
     </div>
     <div class="settings-row" id="key-row">
      <div class="settings-label">OpenAI API key <span class="settings-opt">(only needed for LLM mode)</span></div>
@@ -1006,6 +1018,8 @@ function setSegUI(mode){
  pendingMode=mode
  modeDetBtn.classList.toggle("active",mode==="deterministic")
  modeLlmBtn.classList.toggle("active",mode==="llm")
+ const note=document.getElementById("llm-note")
+ if(note)note.style.display=mode==="llm"?"block":"none"
 }
 function openSettings(){
  settingsMsg.textContent="";settingsMsg.className="settings-msg"
