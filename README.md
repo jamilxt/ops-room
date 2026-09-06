@@ -1,21 +1,40 @@
 # OpsRoom
 
-Concurrent AI agents that fight a production incident together — built for the [JigJoy × daily.dev × Hyperskill hackathon](https://build.jigjoy.ai/) (Sep 5–6, 2026) on the [Mozaik](https://github.com/jigjoy-ai/mozaik) agentic environment.
+Concurrent AI agents that fight a production incident together — built for the [JigJoy × daily.dev × Hyperskill hackathon](https://build.jigjoy.ai/) (Sep 5–6, 2026) on the [Mozaik](https://github.com/jigjoy-ai/mozaik) agentic environment, v4 runtime (`defineRuntime` API).
 
-**[Architecture diagram →](docs/architecture.html)** — six participants around one shared message bus; open in any browser.
+## Quick start
 
-**[Animated walkthrough →](docs/walkthrough.html)** — replay of a real run as a movie: six swimlanes, live message chips, the HOLD moment, comms' status update, with plain-English captions per phase.
+```bash
+git clone https://github.com/jamilxt/ops-room.git
+cd ops-room
+git checkout spike/v4
+npm install
+npm run web        # open http://localhost:8788 — deterministic demo, no key needed
+```
+
+For real LLM inference (verified with OpenAI `gpt-5.4-mini`): copy `.env.example`
+to `.env` and set `OPENAI_API_KEY` + `LLM_MODEL`, then rerun `npm run web`.
+CLI variant: `npm start`.
+
+> **The room has 9 participants** (plus the feed and typed semantic events):
+> Triage, LogSleuth, RiskCommander, Comms, Scribe, On-call (the human),
+> DatabaseHealer, DocsLibrarian (MCP), and the IncidentFeed.
 
 **[Demo video script →](docs/demo-video-script.md)** — shot-by-shot 2-minute recording plan.
 
+**[V4 migration notes →](docs/V4-MIGRATION.md)** — what the v4 runtime changed and why.
+
 ## What it is
 
-A live incident ops room where multiple agents run **truly concurrently** — no pipeline, no orchestrator:
+A live incident ops room where multiple agents run **truly concurrently** — no pipeline, no orchestrator. The scenario speaks **Java / Spring Boot**: a canary rollout of a Boot fat jar, an Actuator p95 alert on `POST /api/checkout`, Hikari pool saturation (`hikaricp.connections.pending=312`), JPA `PessimisticLockException` on cart rows.
 
-- **IncidentFeed** — replays a scripted production incident onto the shared `AgenticEnvironment`, exactly like real telemetry would. Scenario is written for a **Java / Spring Boot shop**: a canary rollout of a Boot fat jar, an Actuator p95 alert on `POST /api/checkout`, Hikari pool saturation (`hikaricp.connections.pending=312`), JPA `PessimisticLockException` on cart rows
+- **IncidentFeed** — replays a scripted production incident onto the shared `AgenticEnvironment`, exactly like real telemetry would; also delivers the mid-run **goal pivot** as a typed `goal-update` SemanticEvent
 - **TriageAgent** — reacts to alerts/metrics, forms hypotheses; **consumes the sleuth's evidence** before re-inferring; obeys commander HOLDs with a `REVISED PROPOSAL`
-- **LogSleuth** — works *in parallel* on raw log lines, extracts error signatures; never waits for triage. The only agent that **uses a real Mozaik tool**: its `search_logs` function tool greps actual fixture logs (`CheckoutRepository.java`, `CheckoutService.java` stack frames) via the framework's function-calling loop, so every signature it publishes is earned from files, not guessed
+- **LogSleuth** — works *in parallel* on raw log lines, extracts error signatures; never waits for triage. Its `search_logs` function tool greps actual fixture logs, so every signature it publishes is earned from files, not guessed
 - **RiskCommander** — intercepts mitigation proposals mid-room and challenges them with an evidence-citing HOLD, unprompted — emergent coordination, not a pipeline step
+- **DatabaseHealer** — joins **mid-incident** when lock evidence appears; reads `[sleuth]` signatures from the bus (not private memory), analyzes the Postgres lock contention, clocks out gracefully when its proposal is on record
+- **DocsLibrarian** — the MCP showcase: its entire toolbox is **discovered from remote MCP servers** (`docs.x.com`, `deepwiki`) at startup via `McpToolRegistry`; verifies configuration questions against official docs
+- **OnCallEngineer** — the **human in the room**: escalation pauses the run and the decision comes from the keyboard (CLI) or Approve/Reject buttons (web)
 - **CommsAgent** — silently watches the whole room, then at incident end drafts the customer-facing status update (LLM mode: real synthesis from the full transcript)
 - **IncidentScribe** — pure observer; writes a live `incident-timeline.md` of everything that crossed the environment
 
@@ -35,6 +54,26 @@ restart"). So mitigations travel as contract tokens:
 - `REVISED PROPOSAL:` → resolves the negotiation, no ping-pong loops
 - HOLD messages cite actual shared evidence from the room
 
+### Second safety layer: tool-call interception
+
+The protocol above gates *proposals*. The room also gates *actions* — every
+state-changing tool call (`restart`, `rollback`, `migrate`, `delete`, `scale`,
+`kill`…) passes through an `InterceptionHandler` (Mozaik v4's interception hook)
+before it can execute:
+
+- **No confirmed evidence → BLOCKED.** The call is rewritten to a readonly
+  evidence-capture step and the room sees `[interceptor] ⚠ BLOCKED …` in the
+  transcript and as a red shield strip in the web console.
+- **Evidence confirmed → ALLOWED**, with the grounding counted:
+  `[interceptor] ALLOWED … (grounded on 2 confirmed signatures)`.
+- Evidence is **room knowledge, not private memory**: the shared
+  `confirmedSignatures` array is fed by `[sleuth]` rows and the healer's lock
+  evidence, so an agent cannot self-authorize a dangerous action.
+
+In the demo this plays as a visible arc: triage's reflex `restart_canary_pods`
+is blocked before evidence exists, then the identical call is allowed once two
+signatures are confirmed — governance you can watch.
+
 ## Run it
 
 ```bash
@@ -46,12 +85,10 @@ npm start
 
 ```bash
 npm run web
-# → http://localhost:8787  (custom port: OPSROOM_PORT=9000 npm run web)
+# → http://localhost:8788  (custom port: OPSROOM_PORT=9000 npm run web)
 ```
 
-Slack-style `#incident-war-room` rendering the live run in your browser: agent roster with live activity, every bus row as a chat bubble, HOLD/ESCALATION rows annotated with a "why this matters" line, and the escalation surfaces as a **⏸ Human decision required** card with **Approve / Reject** buttons wired to the real pause. `▶ Run again` restarts a fresh incident without leaving the page.
-
-CLI stays fully functional (same engine, same behavior):
+Slack-style `#incident-war-room` rendering the live run in your browser: agent roster with live activity, every bus row as a chat bubble, **interceptor guard strips** (red shield = BLOCKED for lack of evidence; amber = ALLOWED, grounded), a live audit pill, HOLD/ESCALATION rows annotated with a "why this matters" line, and the escalation surfaces as a **⏸ Human decision required** card with **Approve / Reject** buttons wired to the real pause — while the room visibly holds (roster dims, header reads "awaiting on-call"). `▶ Run again` restarts a fresh incident without leaving the page.
 
 No API key needed — the demo runs fully deterministic. For real LLM inference, set `LLM_MODEL` to any Mozaik registry name and provide a matching credential. **Verified path: OpenAI cloud (`gpt-5.4-mini`)** — the `gpt-*` registry names route through Mozaik's native OpenAI adapter. Other OpenAI-compatible endpoints (DeepSeek, OpenRouter, Ollama, LM Studio, llama.cpp) work through the generic `/v1/chat/completions` adapter via the `deepseek-v4-flash` registry entry.
 
@@ -101,27 +138,52 @@ npm start
 
 ```
 src/
-  index.ts            # CLI entrypoint (console mode)
-  web.ts              # web entrypoint: zero-dep SSE server + war-room UI
-  scenario.ts         # shared engine: timeline + who joins the environment
-  incident-feed.ts    # deterministic telemetry participant
-  triage-agent.ts     # alert/metric specialist (PROPOSAL/REVISED PROPOSAL)
-  log-sleuth.ts       # log analyst — the tool user (search_logs via Mozaik function-calling)
-  risk-commander.ts   # evidence-citing interception agent (HOLD → ESCALATION)
-  comms-agent.ts      # status-update synthesizer (end of incident)
-  oncall-engineer.ts  # HUMAN participant: approves/rejects escalations
-  incident-scribe.ts  # observer → live timeline artifact
+  runtime-v4.ts           # defineRuntime<OpsRoomState>, spec/processor factories, runLoop + runLoopGated
+  scenario-v4.ts          # timeline, mid-incident joins, goal pivot, interception beats, fault injection
+  incident-interceptor-v4.ts  # the evidence gate for state-changing tool calls (BLOCKED/ALLOWED + stats)
+  interception-beat-v4.ts # demo beats routed through the REAL interceptor (one audit path for demo + LLM)
+  triage-agent-v4.ts      # diagnostician; consumes sleuth evidence; interceptable tool attempts
+  log-sleuth-v4.ts        # log forensics (search_logs tool, deterministic fixture grep)
+  database-healer-v4.ts   # late-joining Postgres specialist; clock-out exit
+  docs-librarian-v4.ts    # MCP showcase — tools discovered from remote servers at runtime
+  risk-commander-v4.ts    # safety referee (HOLD → ESCALATION)
+  comms-agent-v4.ts       # status-update synthesizer
+  oncall-engineer-v4.ts   # the human — pauses the room for approve/reject
+  incident-scribe-v4.ts   # live timeline writer
+  incident-feed-v4.ts     # telemetry replay + typed goal-update SemanticEvent
+  web-v4.ts / page-v4.ts  # war-room console (SSE; guard strips, escalation card, full activity log)
+  line-tap-v4.ts          # central log tap — every internal line reaches console AND browser
+  proposal-protocol.ts    # typed proposal schema + canonical bus line (shared by triage & commander)
+  fixture-search.ts       # deterministic grep over fixture logs (shared by sleuth & healer)
+  model-default.ts        # central default model selection
 fixtures/
   orders-api.log      # what search_logs actually greps (Spring/Hikari stack frames)
   checkout.log
 scripts/
-  test-oncall.ts      # escalation smoke test (both decision branches)
-  test-commander-gate.ts  # regression: gate loopholes, two-strike, exemptions (8 checks)
+  demo-local.mjs      # one-command local-LLM demo
+  mock-openai.mjs     # mock OpenAI server for offline testing
+  mcp-probe.ts        # MCP tool-discovery smoke test
 ```
 
 ## Design notes
 
-- **Streaming is off by default.** Not an omission: on Mozaik 3.14's chat-completions endpoint, streaming delivers raw provider chunks (`chat.completion.chunk`) but never assembles the completed `ModelMessageItem` or `FunctionCallItem`s, so `onModelMessage`/`onFunctionCall` never fire (verified against the installed 3.14.0 with an A/B repro; the items-plus-events contract in the docs only holds on the Responses endpoint). OpsRoom uses single-shot inference, which still runs fully concurrent; nothing in the demo needs token streaming.
-- **Interception is a contract, not vibes.** Agents speak `PROPOSAL:` / `REVISED PROPOSAL:` tokens so the commander's grounding gate fires deterministically even when the LLM paraphrases. Tokens must open their own statement; revisions are gated like fresh proposals; two consecutive ungrounded rows escalate to the human instead of looping.
-- **A human has the last word.** When a revised proposal still cites no evidence, the commander ESCALATES and the on-call engineer decides — at the keyboard (`OPSROOM_ONCALL=interactive npm start`) or with buttons in the web console.
-- **One engine, two frontends.** `scenario.ts` drives both the CLI and the web console — same bus, same participants, same evidence gates; only the output sink differs. The scenario speaks Java/Spring (Hikari, Actuator, JPA locks) while keeping machine tags and error codes stable, so the negotiating agents don't care and Java-fluent humans do.
+- **Streaming is off by default.** Single-shot inference keeps run timing deterministic — the interception beats and the human-approval pause land on schedule in both deterministic and LLM modes. Nothing in the demo needs token streaming.
+- **Interception is a contract, not vibes.** Agents speak `PROPOSAL:` / `REVISED PROPOSAL:` tokens (typed via `structuredOutput` json_schema) so the commander's grounding gate fires deterministically even when the LLM paraphrases. Tokens must open their own statement; revisions are gated like fresh proposals; two consecutive ungrounded rows escalate to the human instead of looping.
+- **A human has the last word.** When a revised proposal still cites no evidence — or a teammate goes down mid-incident — the commander ESCALATES and the on-call engineer decides: at the keyboard (CLI) or with buttons in the web console.
+- **One engine, two frontends.** `scenario-v4.ts` drives both the CLI and the web console — same bus, same participants, same evidence gates; only the output sink differs. Machine tags and error codes stay stable, so the negotiating agents don't care and Java-fluent humans do.
+- **Trade-offs we consciously made.** Not using `ModelContextRepository` — the shared bus plus the `confirmedSignatures` array already give the room common knowledge, and that's the demo's story. Not using token streaming — single-shot inference keeps timing deterministic for the demo. Cloud observability is per-loop-session in v4 (one session per agent turn) — we surface the equivalent view in our own :8788 console instead. Every console line is mirrored to the browser log via `line-tap-v4.ts`, so nothing happens off-screen.
+
+### Where OpsRoom sits in Mozaik's own story
+
+Mozaik's launch essays ("Agent Interoperability Is the Next Big Thing", "The Best Multi-Agent Architecture of 2026 Was Designed in 1975") define the runtime's doctrine:
+
+> interoperability = concurrency × awareness × adaptability
+
+and name **enforcement** as the open problem between capability and trust: pushed to the extreme, adaptive agents "agree each other into error", and the machine-checked layer that holds the line is "still unwritten for the general case".
+
+OpsRoom is a working answer for one domain — incident response:
+
+- **Blackboard, literally.** The room is HEARSAY-II's architecture with LLM experts: the sleuth writes signatures on the shared bus, the healer wakes when lock evidence appears, the commander challenges what lacks grounding — no orchestrator, no pipeline.
+- **The triangle, scored.** Concurrency: 9 agents, non-blocking. Awareness: `@mentions` and bus observation — the healer joins mid-incident and clocks out without collapsing anything (their named "join and leave" requirement, demoed). Adaptability: triage rewrites its proposal under HOLD; the room re-goals mid-run on a typed `goal-update`.
+- **The enforcement layer.** The interceptor is exactly the machine check their essays call for: state-changing tool calls execute only with confirmed shared evidence, and the human has the last word via escalation.
+- **Trade-offs we consciously made.** Not using `ModelContextRepository` — the shared bus plus the `confirmedSignatures` array already give the room common knowledge, and that's the demo's story. Not using token streaming — single-shot inference keeps timing deterministic for the demo. Cloud observability is per-loop-session in v4 (one session per agent turn) — we surface the equivalent view in our own :8788 console instead. Every console line is mirrored to the browser log via `line-tap-v4.ts`, so nothing happens off-screen.

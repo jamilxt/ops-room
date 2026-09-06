@@ -6,3 +6,4 @@ dist/
 !fixtures/*.log
 incident-timeline.md
 runs/
+incident-timeline-v4.md
