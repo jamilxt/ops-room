@@ -139,6 +139,18 @@ async function handler(req: IncomingMessage, res: ServerResponse): Promise<void>
 		} catch {
 			res.end(PAGE)
 		}
+	} else if (url === "/architecture") {
+		// Interactive application diagram (generated with archify, standalone HTML).
+		const fs = await import("node:fs/promises")
+		const path = await import("node:path")
+		try {
+			const html = await fs.readFile(path.resolve(process.cwd(), "docs/architecture.html"), "utf-8")
+			res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" })
+			res.end(html)
+		} catch {
+			res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" })
+			res.end("Architecture diagram not found.")
+		}
 	} else if (url === "/events") {
 		res.writeHead(200, {
 			"Content-Type": "text/event-stream",

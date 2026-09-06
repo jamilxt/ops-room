@@ -372,7 +372,7 @@ html[data-theme=dark] kbd{background:rgba(255,255,255,.1);border-color:rgba(255,
 .llm-note a{color:var(--primary);font-weight:700;text-decoration:underline}
 .llm-note .code{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;background:var(--pane2);border:1px solid var(--line);border-radius:5px;padding:1px 5px;word-break:break-all}
 .repo-link{margin-top:auto;padding:12px 16px;border-top:1px solid var(--line);font-size:11.5px}
-.repo-link a{color:var(--dim);font-weight:700;text-decoration:none}
+.repo-link a{display:block;color:var(--dim);font-weight:700;text-decoration:none;margin-top:4px}
 .repo-link a:hover{color:var(--primary)}
 .repo-sub{font-size:10px;color:var(--faint);margin-top:3px;line-height:1.4}
 
@@ -432,6 +432,7 @@ html[data-theme=dark] kbd{background:rgba(255,255,255,.1);border-color:rgba(255,
    <span><kbd>y</kbd>/<kbd>n</kbd> gate · <kbd>r</kbd> restart · <kbd>f</kbd> focus</span>
   </div>
   <div class="repo-link">
+   <a href="/architecture" target="_blank" rel="noopener" title="Interactive application diagram — how OpsRoom works">🗺 How it works — architecture</a>
    <a href="https://github.com/jamilxt/ops-room" target="_blank" rel="noopener" title="Source code — clone and run locally with your own OpenAI key">★ github.com/jamilxt/ops-room</a>
    <div class="repo-sub">built for the JigJoy × daily.dev × Hyperskill hackathon · Mozaik v4</div>
   </div>
