@@ -174,6 +174,7 @@ body.awaiting .brand-title:after{content:" — awaiting on-call";color:var(--amb
 #search-box{background:var(--pane);border:1px solid var(--line);border-radius:6px;padding:4px 10px;font-size:11.5px;color:var(--text);outline:none;width:160px;transition:all .2s}
 #search-box:focus{border-color:var(--primary);width:210px;box-shadow:0 0 0 2px var(--primary-bg)}
 .jump-btn{position:fixed;bottom:24px;right:28px;z-index:100;background:var(--pane);border:1px solid var(--primary);color:var(--primary);font-size:12px;font-weight:700;border-radius:20px;padding:7px 16px;box-shadow:var(--shadow-md);cursor:pointer;display:inline-flex;align-items:center;gap:6px;animation:cardpop .2s ease-out}
+@media(max-width:860px){.jump-btn{bottom:14px;right:14px;opacity:.94}}
 .jump-btn:hover{background:var(--primary);color:#fff}
 
 /* Formatted Content Callouts */
@@ -329,6 +330,19 @@ html[data-theme=dark] kbd{background:rgba(255,255,255,.1);border-color:rgba(255,
 .welcome-hint{text-align:center;color:var(--faint);font-size:11.5px;margin-top:12px;line-height:1.5}
 #feed .skelbox{text-align:center}
 #feed .skelbox .btn-action{font-size:13.5px;padding:9px 22px}
+
+/* Concurrency proof: execution timeline */
+.rc-timeline{margin:14px 0 4px;border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:var(--pane)}
+.rc-timeline-title{font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--dim);margin-bottom:10px}
+.rc-lane{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.rc-lane-name{width:86px;flex:none;font-size:10px;color:var(--dim);text-align:right;font-family:ui-monospace,Menlo,monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rc-lane-track{flex:1;height:9px;background:var(--line);border-radius:4px;position:relative;overflow:hidden}
+.rc-lane-bar{position:absolute;top:0;height:100%;border-radius:4px;background:var(--primary);opacity:.85;min-width:3px}
+.rc-lane-bar.blocked{background:var(--amber)}
+.rc-verdict{margin-top:10px;font-size:12px;line-height:1.6;color:var(--dim);border-top:1px dashed var(--line);padding-top:9px}
+.rc-verdict b{color:var(--text)}
+.rc-verdict .vb{color:var(--amber);font-weight:700}
+.rc-verdict .vg{color:var(--green);font-weight:700}
 
 @media(max-width:860px){aside{display:none}.hud-item{min-width:110px}}
 
@@ -602,10 +616,34 @@ function rich(h){
 function el(html){const t=document.createElement("template");t.innerHTML=html.trim();return t.content.firstChild}
 
 function parseTag(rest){
- for(const k of Object.keys(AGENTS)){
-  if(k!=="system"&&rest.indexOf("["+k+"] ")===0)return k
- }
- return null
+for(const k of Object.keys(AGENTS)){
+ if(k!=="system"&&rest.indexOf("["+k+"] ")===0)return k
+}
+return null
+}
+
+// ---- Concurrency proof: per-agent activity tracking ----
+// Every feed row records [start,end] segments in run-time seconds.
+// Guard strips (BLOCKED/ALLOWED) and the escalation gate are counted too.
+const LANE_KEYS=["deploy","alert","metric","log","triage","sleuth","healer","librarian","commander","comms","oncall","scribe"]
+const laneSegments={}   // key -> [[start,end],...]
+let guardBlockedCount=0, guardAllowedCount=0, escalationHoldAt=null, escalationHoldSeconds=0, peakInFlight=0, lastAgentActivity={}
+function runSeconds(){return Math.max(0,(Date.now()-startTime)/1000)}
+function recordActivity(who){
+ if(!who||LANE_KEYS.indexOf(who)<0)return
+ const t=runSeconds()
+ const segs=laneSegments[who]||(laneSegments[who]=[])
+ const last=segs[segs.length-1]
+ if(last&&t-last[1]<=2.5){last[1]=t}   // extend: bursts within 2.5s are one segment
+ else segs.push([t,t])
+ lastAgentActivity[who]=t
+ // peak concurrency: count agents with an open (unmerged) segment in the last 2.5s
+ let inFlight=0
+ for(const k of LANE_KEYS){const s=laneSegments[k];if(s&&s.length){const l=s[s.length-1];if(t-l[1]<=2.5)inFlight++}}
+ if(inFlight>peakInFlight)peakInFlight=inFlight
+}
+function gateHeld(sec){
+ if(escalationHoldAt!==null)escalationHoldSeconds+=sec
 }
 
 function updateStepper(stepNum){
@@ -824,6 +862,7 @@ function addRow(line){
  if(hTimer&&!timerInterval&&!isTimerPaused)hTimer.textContent=ts
 
  const who=parseTag(rest)||"system"
+ recordActivity(who)
  const body=rest.replace("["+who+"] ","")
  const story=storyFor(who,body,line)
  const human=humanLine(body)||story.hl
@@ -915,7 +954,23 @@ function decide(approved){
 function addRecap(sig,fnd,ch){
  updateStepper(5)
  stopTimer()
- const card=el('<div class="recap-card" data-step="5"><div class="rc-header"><div class="rc-icon">✓</div><div><div class="rc-title">Incident Successfully Contained & Mitigated</div><div class="rc-sub">Multi-agent governance prevented catastrophic outage and resolved lock contention</div></div></div><div class="rc-grid"><div class="rc-stat g"><b>'+(sig===undefined?"2":String(sig))+'</b><span>Evidence Signatures</span></div><div class="rc-stat a"><b>'+(fnd===undefined?"3":String(fnd))+'</b><span>Proposals Evaluated</span></div><div class="rc-stat r"><b>'+(ch===undefined?"1":String(ch))+'</b><span>Safety Holds</span></div><div class="rc-stat b"><b>'+String(msgCount)+'</b><span>Total Events</span></div></div><div class="rc-insights"><div class="rc-insight-row"><span class="rc-check">✓</span><div><b>Root Cause:</b> Row lock contention (<span class="code">CHECKOUT_LOCK_ERROR</span>) on orders-api cart table cascaded into connection pool starvation (<span class="code">TIMEOUT_ERROR</span>).</div></div><div class="rc-insight-row"><span class="rc-check">✓</span><div><b>Key Safeguard:</b> Risk Commander prevented blind pod restart (saving 60s outage); Database Healer safely localized mitigation to canary pods.</div></div></div><div class="rc-footer">Audit trail recorded by Incident Scribe → <span class="code-green">incident-timeline.md</span></div><div class="rc-actions"><button id="copy-comms" class="btn-action">📋 Copy Status Update</button><a href="/timeline" download="incident-timeline.md" class="btn-action primary">📥 Download Postmortem (.md)</a></div></div>')
+ // close any open activity segments at the final run time
+ const totalRun=runSeconds()
+ for(const k of LANE_KEYS){const s=laneSegments[k];if(s&&s.length){const l=s[s.length-1];if(totalRun-l[1]<=2.5)l[1]=totalRun}}
+ if(escalationHoldAt!==null){escalationHoldSeconds+=(Date.now()-escalationHoldAt)/1000;escalationHoldAt=null}
+ // timeline lanes: only agents that actually did something
+ const activeLanes=LANE_KEYS.filter(k=>(laneSegments[k]||[]).length)
+ const maxT=Math.max(1,...activeLanes.flatMap(k=>laneSegments[k].map(s=>s[1])))
+ let lanesHtml=""
+ for(const k of activeLanes){
+  const segs=laneSegments[k]
+  const bars=segs.map(s=>'<span class="rc-lane-bar" style="left:'+((s[0]/maxT)*100).toFixed(1)+'%;width:'+Math.max(1.2,((s[1]-s[0])/maxT)*100).toFixed(1)+'%"></span>').join("")
+  lanesHtml+='<div class="rc-lane"><span class="rc-lane-name" title="'+esc(NAMES[k]||k)+'">'+esc(k)+'</span><span class="rc-lane-track">'+bars+'</span></div>'
+ }
+ const agentCount=activeLanes.length
+ const verdict='<div class="rc-verdict"><b>Run proof:</b> '+msgCount+' events · <b>'+agentCount+' agents active</b> · peak <b>'+peakInFlight+' agents in flight</b> · interceptor <span class="vb">'+guardBlockedCount+' BLOCKED</span> / <span class="vg">'+guardAllowedCount+' ALLOWED</span>'+(escalationHoldSeconds>=1?' · human gate held <b>'+escalationHoldSeconds.toFixed(0)+'s</b>':'')+' · all timestamps from this live run</div>'
+ const timeline='<div class="rc-timeline"><div class="rc-timeline-title">Concurrent execution timeline — when each agent actually ran</div>'+lanesHtml+verdict+'</div>'
+ const card=el('<div class="recap-card" data-step="5"><div class="rc-header"><div class="rc-icon">✓</div><div><div class="rc-title">Incident Successfully Contained & Mitigated</div><div class="rc-sub">Multi-agent governance prevented catastrophic outage and resolved lock contention</div></div></div><div class="rc-grid"><div class="rc-stat g"><b>'+(sig===undefined?"2":String(sig))+'</b><span>Evidence Signatures</span></div><div class="rc-stat a"><b>'+(fnd===undefined?"3":String(fnd))+'</b><span>Proposals Evaluated</span></div><div class="rc-stat r"><b>'+(ch===undefined?"1":String(ch))+'</b><span>Safety Holds</span></div><div class="rc-stat b"><b>'+String(msgCount)+'</b><span>Total Events</span></div></div>'+timeline+'<div class="rc-insights"><div class="rc-insight-row"><span class="rc-check">✓</span><div><b>Root Cause:</b> Row lock contention (<span class="code">CHECKOUT_LOCK_ERROR</span>) on orders-api cart table cascaded into connection pool starvation (<span class="code">TIMEOUT_ERROR</span>).</div></div><div class="rc-insight-row"><span class="rc-check">✓</span><div><b>Key Safeguard:</b> Risk Commander prevented blind pod restart (saving 60s outage); Database Healer safely localized mitigation to canary pods.</div></div></div><div class="rc-footer">Audit trail recorded by Incident Scribe → <span class="code-green">incident-timeline.md</span></div><div class="rc-actions"><button id="copy-comms" class="btn-action">📋 Copy Status Update</button><a href="/timeline" download="incident-timeline.md" class="btn-action primary">📥 Download Postmortem (.md)</a></div></div>')
  feed.appendChild(card)
  card.scrollIntoView({block:"center"})
  const copyBtn=card.querySelector("#copy-comms")
@@ -947,6 +1002,8 @@ function render(line){
 
 function reset(){
  pending=null;msgCount=0;agentFilter=null;categoryFilter="all";lastCommsUpdate=""
+ for(const k of LANE_KEYS)delete laneSegments[k]
+ guardBlockedCount=0;guardAllowedCount=0;escalationHoldAt=null;escalationHoldSeconds=0;peakInFlight=0;lastAgentActivity={}
  countSafety=0;countEvidence=0;countTelemetry=0
  document.body.classList.remove("awaiting")
  guardCount=0
@@ -999,6 +1056,8 @@ function showGuardModal(){
 let guardCount=0
 function renderGuard(line,blocked){
  guardCount++
+ if(blocked)guardBlockedCount++;else guardAllowedCount++
+ recordActivity("commander")
  const gb=document.getElementById("guard-badge")
  if(gb){
   gb.textContent=guardCount+(blocked?" blocked":" audits")
@@ -1022,9 +1081,9 @@ function start(){
   let d;try{d=JSON.parse(ev.data)}catch(e){return}
   if(d.type==="row")render(d.line)
   else if(d.type==="guard")renderGuard(d.line,d.blocked)
-  else if(d.type==="escalation"){setStatus("waiting for you","waiting");addEscalation(d.text);document.body.classList.add("awaiting")}
+  else if(d.type==="escalation"){setStatus("waiting for you","waiting");addEscalation(d.text);document.body.classList.add("awaiting");escalationHoldAt=Date.now();recordActivity("oncall")}
   else if(d.type==="reset")reset()
-  else if(d.type==="state"){if(d.value==="live"&&!pending){setStatus("live","live");document.body.classList.remove("awaiting");resumeTimer()}else if(d.value==="idle"){setStatus("idle","idle");document.body.classList.remove("awaiting");stopTimer()}}
+  else if(d.type==="state"){if(d.value==="live"&&!pending){if(escalationHoldAt!==null){escalationHoldSeconds+=(Date.now()-escalationHoldAt)/1000;escalationHoldAt=null}setStatus("live","live");document.body.classList.remove("awaiting");resumeTimer()}else if(d.value==="idle"){setStatus("idle","idle");document.body.classList.remove("awaiting");stopTimer()}}
   else if(d.type==="summary"){render("");addRecap(d.sig,d.findings,d.challenges);setStatus("idle","idle")}
   else if(d.type==="hello"){const mt=document.getElementById("mode-tag");if(mt)mt.textContent=d.mode}
  }
