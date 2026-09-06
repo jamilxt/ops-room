@@ -2,6 +2,11 @@
 
 Concurrent AI agents that fight a production incident together — built for the [JigJoy × daily.dev × Hyperskill hackathon](https://build.jigjoy.ai/) (Sep 5–6, 2026) on the [Mozaik](https://github.com/jigjoy-ai/mozaik) agentic environment, v4 runtime (`defineRuntime` API).
 
+**Watch it live: [opsroom.jamilxt.com](https://opsroom.jamilxt.com)** — deterministic mode, no key needed.
+
+![Live incident war room](docs/screenshots/war-room.png)
+*Triage, LogSleuth and the RiskCommander working the same incident on the shared bus — interceptor guard strips show BLOCKED/ALLOWED in real time.*
+
 ## Quick start
 
 ```bash
@@ -12,7 +17,7 @@ npm run web        # open http://localhost:8788 — deterministic demo, no key n
 ```
 
 For real LLM inference (verified with OpenAI `gpt-5.4-mini`): copy `.env.example`
-to `.env` and set `OPENAI_API_KEY` + `LLM_MODEL`, then rerun `npm run web`.
+to `.env` and set `OPENAI_API_KEY`, then rerun `npm run web`.
 CLI variant: `npm start`.
 
 > **The room has 9 participants** (plus the feed and typed semantic events):
@@ -77,7 +82,8 @@ signatures are confirmed — governance you can watch.
 
 ```bash
 npm install
-npm start
+npm run web        # web console — recommended
+# or the CLI variant: npm start
 ```
 
 ### Web console (recommended for the demo)
@@ -87,7 +93,14 @@ npm run web
 # → http://localhost:8788  (custom port: OPSROOM_PORT=9000 npm run web)
 ```
 
-Slack-style `#incident-war-room` rendering the live run in your browser: agent roster with live activity, every bus row as a chat bubble, **interceptor guard strips** (red shield = BLOCKED for lack of evidence; amber = ALLOWED, grounded), a live audit pill, HOLD/ESCALATION rows annotated with a "why this matters" line, and the escalation surfaces as a **⏸ Human decision required** card with **Approve / Reject** buttons wired to the real pause — while the room visibly holds (roster dims, header reads "awaiting on-call"). `▶ Run again` restarts a fresh incident without leaving the page.
+Slack-style `#incident-war-room` rendering the live run in your browser:
+
+- **Agent roster with live activity** — every bus row lands as a chat bubble
+- **Interceptor guard strips** — red shield = BLOCKED for lack of evidence; amber = ALLOWED, grounded
+- **⏸ Human decision required** — the escalation card's Approve/Reject buttons are wired to the real pause; while the room holds, the roster dims and the header reads "awaiting on-call" (![escalation](docs/screenshots/escalation.png), ![recap](docs/screenshots/recap.png))
+- **⚙ Settings panel** — toggle deterministic/LLM mode per run (LLM needs a server-side key; the panel points public visitors to run locally with their own)
+- **Live audit pill** ("N audits"), HOLD/ESCALATION rows annotated with a "why this matters" line, `▶ Run again` restarts fresh without leaving the page
+- **Mobile-friendly** — the roster becomes a slide-in drawer, the console works down to phone widths
 
 No API key needed — the demo runs fully deterministic. For real LLM inference, set `LLM_MODEL` to any Mozaik registry name and provide a matching credential. **Verified path: OpenAI cloud (`gpt-5.4-mini`)** — the `gpt-*` registry names route through Mozaik's native OpenAI adapter. Other OpenAI-compatible endpoints (DeepSeek, OpenRouter, Ollama, LM Studio, llama.cpp) work through the generic `/v1/chat/completions` adapter via the `deepseek-v4-flash` registry entry.
 
@@ -185,4 +198,3 @@ OpsRoom is a working answer for one domain — incident response:
 - **Blackboard, literally.** The room is HEARSAY-II's architecture with LLM experts: the sleuth writes signatures on the shared bus, the healer wakes when lock evidence appears, the commander challenges what lacks grounding — no orchestrator, no pipeline.
 - **The triangle, scored.** Concurrency: 9 agents, non-blocking. Awareness: `@mentions` and bus observation — the healer joins mid-incident and clocks out without collapsing anything (their named "join and leave" requirement, demoed). Adaptability: triage rewrites its proposal under HOLD; the room re-goals mid-run on a typed `goal-update`.
 - **The enforcement layer.** The interceptor is exactly the machine check their essays call for: state-changing tool calls execute only with confirmed shared evidence, and the human has the last word via escalation.
-- **Trade-offs we consciously made.** Not using `ModelContextRepository` — the shared bus plus the `confirmedSignatures` array already give the room common knowledge, and that's the demo's story. Not using token streaming — single-shot inference keeps timing deterministic for the demo. Cloud observability is per-loop-session in v4 (one session per agent turn) — we surface the equivalent view in our own :8788 console instead. Every console line is mirrored to the browser log via `line-tap-v4.ts`, so nothing happens off-screen.
