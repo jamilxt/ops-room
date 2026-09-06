@@ -7,6 +7,14 @@ Concurrent AI agents that fight a production incident together — built for the
 ![Live incident war room](docs/screenshots/war-room.png)
 *Triage, LogSleuth and the RiskCommander working the same incident on the shared bus — interceptor guard strips show BLOCKED/ALLOWED in real time.*
 
+## How it works
+
+![OpsRoom architecture](docs/screenshots/architecture.png)
+
+*Application diagram: telemetry feed → shared bus → reacting agents, with the interceptor evidence gate and the human pause.*
+
+Open the [interactive diagram](https://opsroom.jamilxt.com/architecture) on the live site — standalone HTML with dark/light themes, pan/zoom, search, and relationship tracing. Locally, run `npm run web` and visit `/architecture`.
+
 ## Quick start
 
 ```bash
