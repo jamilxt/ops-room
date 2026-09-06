@@ -939,7 +939,9 @@ function addEscalation(text){
  pending=el('<div class="escalation-card" data-step="4"><div class="esc-head"><div class="esc-icon">⚠️</div><div><div class="esc-title">Human Decision Required — Safety Gate Triggered</div><div class="esc-sub">The AI agents cannot proceed with state changes without on-call authorization</div></div></div><div class="esc-body"></div><div class="esc-actions"><button id="yes" class="btn-esc btn-approve"><kbd>y</kbd> Approve Mitigation</button><button id="no" class="btn-esc btn-reject"><kbd>n</kbd> Reject (Demand Safer Fix)</button></div></div>')
  pending.querySelector(".esc-body").textContent=text
  feed.appendChild(pending)
- pending.scrollIntoView({block:"center"})
+ // scroll AFTER the browser lays out the appended card, and force the
+ // feedwrap to bottom so the approve/reject card is always in view on refresh
+ requestAnimationFrame(()=>{pending.scrollIntoView({block:"center"});userScrolledUp=false;const jb=document.getElementById("jump-latest");if(jb)jb.hidden=true})
  pending.querySelector("#yes").onclick=()=>decide(true)
  pending.querySelector("#no").onclick=()=>decide(false)
 }
