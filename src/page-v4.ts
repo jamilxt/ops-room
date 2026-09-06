@@ -1010,16 +1010,25 @@ function setSegUI(mode){
 function openSettings(){
  settingsMsg.textContent="";settingsMsg.className="settings-msg"
  keyInput.value=""
+ try{keyInput.value=localStorage.getItem("opsroom-llm-key")||""}catch(e){}
  fetch("/config").then(r=>r.json()).then(c=>{
   setSegUI(c.mode)
   document.getElementById("key-hint").textContent=c.hasKey
-   ?"A key is already loaded for this session (kept in server memory). Paste a new one only to replace it."
-   :"Sent to this server for the current session only — never stored on disk, never sent anywhere else, never shown back."
+   ?"Key is stored in this browser (localStorage) and re-sent to the server on every page load — it is never stored server-side."
+   :"Stored in this browser (localStorage) and re-sent to the server on page load — never stored server-side."
  }).catch(()=>setSegUI("deterministic"))
  settingsModal.style.display="flex"
 }
 function closeSettings(){settingsModal.style.display="none"}
 function showMsg(text,ok){settingsMsg.textContent=text;settingsMsg.className="settings-msg "+(ok?"ok":"err")}
+
+/** Push the browser-stored key to the server for this session (memory-only there). */
+function syncKeyToServer(){
+ let k=null;try{k=localStorage.getItem("opsroom-llm-key")}catch(e){}
+ if(!k)return
+ fetch("/config",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({mode:"llm",apiKey:k})}).catch(()=>{})
+}
+syncKeyToServer()
 
 document.getElementById("settings-btn").onclick=openSettings
 document.getElementById("settings-close").onclick=closeSettings
@@ -1029,7 +1038,12 @@ modeLlmBtn.onclick=()=>setSegUI("llm")
 document.getElementById("settings-save").onclick=()=>{
  const body={mode:pendingMode}
  const k=keyInput.value.trim()
- if(pendingMode==="llm"&&k)body.apiKey=k
+ if(pendingMode==="llm"&&k){
+  body.apiKey=k
+  try{localStorage.setItem("opsroom-llm-key",k)}catch(e){}
+ }else if(pendingMode==="deterministic"){
+  try{localStorage.removeItem("opsroom-llm-key")}catch(e){}
+ }
  fetch("/config",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})
   .then(async r=>{
    const data=await r.json().catch(()=>({}))
