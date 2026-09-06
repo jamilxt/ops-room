@@ -102,9 +102,11 @@ v4 adds three files with no v3 counterpart:
 
 ## The v4 room at a glance
 
-9 participants: Triage, LogSleuth, RiskCommander, Comms, Scribe,
-OnCallEngineer (human), DatabaseHealer and DocsLibrarian (both join
-mid-incident), plus the IncidentFeed. Two safety layers: the commander's
+12 participants on the shared bus: the 8 AI agents — Triage, LogSleuth,
+RiskCommander, Comms, Scribe, OnCallEngineer (human), DatabaseHealer and
+DocsLibrarian (both join mid-incident) — plus 4 telemetry feed
+participants (deploy, alert, metric, log) replaying the incident.
+Two safety layers: the commander's
 proposal gate (PROPOSAL/HOLD/REVISED protocol) AND tool-call interception
 (`InterceptionHandler` as the 4th argument of `runLoop` — wired via
 `runLoopGated` in `runtime-v4.ts`; the deterministic demo beats go through

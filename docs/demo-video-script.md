@@ -25,7 +25,7 @@ Target: **2:00**. One take per beat, cut together. Recorded on macOS, LLM mode (
 | # | Time | On screen | Voiceover |
 |---|------|-----------|-----------|
 | 1 | 0:00–0:12 | Browser on localhost:8788, idle room | "When production breaks, three things happen at once — alerts fire, logs pile up, metrics spike. Human war rooms handle that in parallel. Most 'multi-agent' demos don't — they're pipelines wearing a costume." |
-| 2 | 0:12–0:20 | Point at the roster: 9 participants with live activity | "OpsRoom runs nine participants around one shared message bus — and one of them is a human. There's no orchestrator. Every reaction you'll see emerges from messages crossing this bus." |
+| 2 | 0:12–0:20 | Point at the roster: 12 participants with live activity | "OpsRoom runs twelve participants around one shared message bus — eight autonomous agents, and one of them is a human. There's no orchestrator. Every reaction you'll see emerges from messages crossing this bus." |
 | 3 | 0:20–0:26 | Hit ▶ Run, the bus wakes | "Real LLMs negotiating in real time — actual reasoning you can audit." |
 | 4 | 0:26–0:50 | Live run: deploy → alert → **BLOCKED strip** fires on the reflex call → sleuth signature while triage infers | "A canary deploy goes bad. Triage's first instinct is restarting pods — and the interceptor blocks it: no confirmed evidence, no state change. Watch the log analyst — it extracts the lock signature *while* triage is still thinking. Two agents working at the same moment." |
 | 5 | 0:50–0:58 | Highlight **ALLOWED** strip: same class of call, now grounded | "Evidence lands. The identical action now passes — with its grounding counted. Governance you can watch, not a policy nobody enforces." |
@@ -47,5 +47,5 @@ Total ≈ 300 narrated words — comfortable at normal pace. Rehearse beats 6–
 
 - Browser clips: speed up idle stretches 4–8×, full speed on the interceptor strips and beats 6–7.
 - Lower-third captions for agent names as they first appear ([triage], [sleuth], [commander], [healer], [comms], [oncall]).
-- End card mirrors the README: "9 participants · one shared bus · zero orchestrators · one human with the last word".
+- End card mirrors the README: "12 participants · one shared bus · zero orchestrators · one human with the last word".
 - Closing line lands the submission thesis: we implemented the enforcement layer Mozaik's launch essays name as the open problem between capability and trust.

@@ -20,9 +20,10 @@ For real LLM inference (verified with OpenAI `gpt-5.4-mini`): copy `.env.example
 to `.env` and set `OPENAI_API_KEY`, then rerun `npm run web`.
 CLI variant: `npm start`.
 
-> **The room has 9 participants** (plus the feed and typed semantic events):
-> Triage, LogSleuth, RiskCommander, Comms, Scribe, On-call (the human),
-> DatabaseHealer, DocsLibrarian (MCP), and the IncidentFeed.
+> **The room runs 12 participants on one shared bus** — 8 autonomous AI agents
+> (Triage, LogSleuth, RiskCommander, Comms, Scribe, On-call (the human),
+> DatabaseHealer, DocsLibrarian (MCP)) plus 4 telemetry feed participants
+> (deploy, alert, metric, log) replaying the incident, with typed semantic events.
 
 **[V4 migration notes →](docs/V4-MIGRATION.md)** — what the v4 runtime changed and why.
 
@@ -194,5 +195,5 @@ and name **enforcement** as the open problem between capability and trust: pushe
 OpsRoom is a working answer for one domain — incident response:
 
 - **Blackboard, literally.** The room is HEARSAY-II's architecture with LLM experts: the sleuth writes signatures on the shared bus, the healer wakes when lock evidence appears, the commander challenges what lacks grounding — no orchestrator, no pipeline.
-- **The triangle, scored.** Concurrency: 9 agents, non-blocking. Awareness: `@mentions` and bus observation — the healer joins mid-incident and clocks out without collapsing anything (their named "join and leave" requirement, demoed). Adaptability: triage rewrites its proposal under HOLD; the room re-goals mid-run on a typed `goal-update`.
+- **The triangle, scored.** Concurrency: 12 participants on the bus (8 autonomous agents), non-blocking. Awareness: `@mentions` and bus observation — the healer joins mid-incident and clocks out without collapsing anything (their named "join and leave" requirement, demoed). Adaptability: triage rewrites its proposal under HOLD; the room re-goals mid-run on a typed `goal-update`.
 - **The enforcement layer.** The interceptor is exactly the machine check their essays call for: state-changing tool calls execute only with confirmed shared evidence, and the human has the last word via escalation.
