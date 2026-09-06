@@ -337,7 +337,7 @@ html[data-theme=dark] kbd{background:rgba(255,255,255,.1);border-color:rgba(255,
 .rc-lane{display:flex;align-items:center;gap:8px;margin-bottom:4px}
 .rc-lane-name{width:86px;flex:none;font-size:10px;color:var(--dim);text-align:right;font-family:ui-monospace,Menlo,monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .rc-lane-track{flex:1;height:9px;background:var(--line);border-radius:4px;position:relative;overflow:hidden}
-.rc-lane-bar{position:absolute;top:0;height:100%;border-radius:4px;background:var(--primary);opacity:.85;min-width:3px}
+.rc-lane-bar{position:absolute;top:0;height:100%;border-radius:4px;background:var(--primary);opacity:.9;min-width:3%}
 .rc-lane-bar.blocked{background:var(--amber)}
 .rc-verdict{margin-top:10px;font-size:12px;line-height:1.6;color:var(--dim);border-top:1px dashed var(--line);padding-top:9px}
 .rc-verdict b{color:var(--text)}
@@ -951,7 +951,7 @@ function decide(approved){
  fetch("/decision",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({answer:approved?"y":"n"})})
 }
 
-function addRecap(sig,fnd,ch){
+function addRecap(sig,fnd,ch,holds){
  updateStepper(5)
  stopTimer()
  // close any open activity segments at the final run time
@@ -970,7 +970,7 @@ function addRecap(sig,fnd,ch){
  const agentCount=activeLanes.length
  const verdict='<div class="rc-verdict"><b>Run proof:</b> '+msgCount+' events · <b>'+agentCount+' agents active</b> · peak <b>'+peakInFlight+' agents in flight</b> · interceptor <span class="vb">'+guardBlockedCount+' BLOCKED</span> / <span class="vg">'+guardAllowedCount+' ALLOWED</span>'+(escalationHoldSeconds>=1?' · human gate held <b>'+escalationHoldSeconds.toFixed(0)+'s</b>':'')+' · all timestamps from this live run</div>'
  const timeline='<div class="rc-timeline"><div class="rc-timeline-title">Concurrent execution timeline — when each agent actually ran</div>'+lanesHtml+verdict+'</div>'
- const card=el('<div class="recap-card" data-step="5"><div class="rc-header"><div class="rc-icon">✓</div><div><div class="rc-title">Incident Successfully Contained & Mitigated</div><div class="rc-sub">Multi-agent governance prevented catastrophic outage and resolved lock contention</div></div></div><div class="rc-grid"><div class="rc-stat g"><b>'+(sig===undefined?"2":String(sig))+'</b><span>Evidence Signatures</span></div><div class="rc-stat a"><b>'+(fnd===undefined?"3":String(fnd))+'</b><span>Proposals Evaluated</span></div><div class="rc-stat r"><b>'+(ch===undefined?"1":String(ch))+'</b><span>Safety Holds</span></div><div class="rc-stat b"><b>'+String(msgCount)+'</b><span>Total Events</span></div></div>'+timeline+'<div class="rc-insights"><div class="rc-insight-row"><span class="rc-check">✓</span><div><b>Root Cause:</b> Row lock contention (<span class="code">CHECKOUT_LOCK_ERROR</span>) on orders-api cart table cascaded into connection pool starvation (<span class="code">TIMEOUT_ERROR</span>).</div></div><div class="rc-insight-row"><span class="rc-check">✓</span><div><b>Key Safeguard:</b> Risk Commander prevented blind pod restart (saving 60s outage); Database Healer safely localized mitigation to canary pods.</div></div></div><div class="rc-footer">Audit trail recorded by Incident Scribe → <span class="code-green">incident-timeline.md</span></div><div class="rc-actions"><button id="copy-comms" class="btn-action">📋 Copy Status Update</button><a href="/timeline" download="incident-timeline.md" class="btn-action primary">📥 Download Postmortem (.md)</a></div></div>')
+ const card=el('<div class="recap-card" data-step="5"><div class="rc-header"><div class="rc-icon">✓</div><div><div class="rc-title">Incident Successfully Contained & Mitigated</div><div class="rc-sub">Multi-agent governance prevented catastrophic outage and resolved lock contention</div></div></div><div class="rc-grid"><div class="rc-stat g"><b>'+(sig===undefined?"2":String(sig))+'</b><span>Evidence Signatures</span></div><div class="rc-stat a"><b>'+(fnd===undefined?"3":String(fnd))+'</b><span>Proposals Evaluated</span></div><div class="rc-stat r"><b>'+(holds!==undefined?String(holds):(ch===undefined?"1":String(ch)))+'</b><span>Safety Holds</span></div><div class="rc-stat b"><b>'+String(msgCount)+'</b><span>Total Events</span></div></div>'+timeline+'<div class="rc-insights"><div class="rc-insight-row"><span class="rc-check">✓</span><div><b>Root Cause:</b> Row lock contention (<span class="code">CHECKOUT_LOCK_ERROR</span>) on orders-api cart table cascaded into connection pool starvation (<span class="code">TIMEOUT_ERROR</span>).</div></div><div class="rc-insight-row"><span class="rc-check">✓</span><div><b>Key Safeguard:</b> Risk Commander prevented blind pod restart (saving 60s outage); Database Healer safely localized mitigation to canary pods.</div></div></div><div class="rc-footer">Audit trail recorded by Incident Scribe → <span class="code-green">incident-timeline.md</span></div><div class="rc-actions"><button id="copy-comms" class="btn-action">📋 Copy Status Update</button><a href="/timeline" download="incident-timeline.md" class="btn-action primary">📥 Download Postmortem (.md)</a></div></div>')
  feed.appendChild(card)
  card.scrollIntoView({block:"center"})
  const copyBtn=card.querySelector("#copy-comms")
@@ -1084,7 +1084,7 @@ function start(){
   else if(d.type==="escalation"){setStatus("waiting for you","waiting");addEscalation(d.text);document.body.classList.add("awaiting");escalationHoldAt=Date.now();recordActivity("oncall")}
   else if(d.type==="reset")reset()
   else if(d.type==="state"){if(d.value==="live"&&!pending){if(escalationHoldAt!==null){escalationHoldSeconds+=(Date.now()-escalationHoldAt)/1000;escalationHoldAt=null}setStatus("live","live");document.body.classList.remove("awaiting");resumeTimer()}else if(d.value==="idle"){setStatus("idle","idle");document.body.classList.remove("awaiting");stopTimer()}}
-  else if(d.type==="summary"){render("");addRecap(d.sig,d.findings,d.challenges);setStatus("idle","idle")}
+  else if(d.type==="summary"){render("");addRecap(d.sig,d.findings,d.challenges,d.holds);setStatus("idle","idle")}
   else if(d.type==="hello"){const mt=document.getElementById("mode-tag");if(mt)mt.textContent=d.mode}
  }
 }

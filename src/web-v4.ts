@@ -19,6 +19,7 @@ let events: ServerResponse[] = []
 let busy = false
 let startedOnce = false
 let pendingDecision: ((answer: string) => void) | null = null
+let guardBlockedTotal = 0
 
 // ---- runtime config (set from the web console, memory-only) -----------------
 // No API key is ever written to disk or served back to the client — POST /config
@@ -62,6 +63,7 @@ async function startRun(): Promise<void> {
 	busy = true
 	broadcast({ type: "state", value: "live" })
 	broadcast({ type: "reset" })
+	guardBlockedTotal = 0
 	// Line tap: EVERY internal narrator line (triage picks, goal updates,
 	// comms progress, scribe, challenge notices) now flows through
 	// tapLine() -> here, so the browser log matches the server console.
@@ -71,6 +73,7 @@ async function startRun(): Promise<void> {
 		broadcast({ type: "row", line })
 		if (line.includes("[interceptor]")) {
 			const blocked = line.includes("BLOCKED")
+			if (blocked) guardBlockedTotal++
 			broadcast({ type: "guard", line, blocked })
 		}
 	})
@@ -101,6 +104,7 @@ async function startRun(): Promise<void> {
 				sig: result.signatures,
 				findings: result.findings,
 				challenges: result.challenges,
+				holds: guardBlockedTotal,
 			})
 			broadcast({ type: "state", value: "idle" })
 		})
