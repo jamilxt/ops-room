@@ -353,6 +353,49 @@ html[data-theme=dark] kbd{background:rgba(255,255,255,.1);border-color:rgba(255,
 .repo-link a{color:var(--dim);font-weight:700;text-decoration:none}
 .repo-link a:hover{color:var(--primary)}
 .repo-sub{font-size:10px;color:var(--faint);margin-top:3px;line-height:1.4}
+
+/* ---- Mobile / small-screen layout ---- */
+.sidebar-toggle{display:none;background:none;border:1px solid var(--line);color:var(--dim);padding:6px 11px;font-size:14px;border-radius:7px}
+@media(max-width:860px){
+ .sidebar-toggle{display:inline-flex}
+ /* Header: wrap gracefully, let the title breathe */
+ header{padding:8px 12px;gap:8px}
+ .header-title{font-size:14px}
+ #mode-tag{display:none} /* HUD + feed carry the info; saves a whole row */
+ /* HUD cards: 2-up grid instead of a wide row */
+ .hud{padding:6px 10px;gap:8px}
+ .hud-item{flex:1 1 44%;min-width:0}
+ .hud-item.hud-grow{flex-basis:100%}
+ .hud-directive{font-size:11px}
+ /* Stepper scrolls horizontally already; tighten it */
+ .stepper{padding:8px 10px;gap:5px;scrollbar-width:none}
+ /* Control bar: let tabs scroll instead of squashing */
+ .control-bar{padding:6px 10px;gap:8px}
+ .tabs{overflow-x:auto;max-width:100%;scrollbar-width:none;-ms-overflow-style:none}
+ .tab{white-space:nowrap}
+ /* Feed edge-to-edge */
+ #feedwrap{padding:12px 10px}
+ /* Buttons: compact */
+ .btn-header{padding:6px 10px;font-size:11.5px}
+ /* Escalation + recap cards: full-width, no overflow */
+ .escalation-card,.recap-card{padding:14px}
+ .rc-grid{grid-template-columns:repeat(2,1fr)}
+ /* Settings modal: bottom sheet on phones */
+ .settings-modal{padding:10px;align-items:flex-end}
+ .settings-card{width:100%;max-height:92vh;overflow-y:auto}
+ .settings-body{padding:14px}
+ /* Sidebar becomes a slide-in drawer */
+ body.sidebar-open aside{
+  display:flex;position:fixed;left:0;top:0;bottom:0;z-index:150;
+  width:280px;box-shadow:0 0 40px rgba(0,0,0,.25);
+ }
+}
+@media(max-width:480px){
+ .hud-item{flex-basis:100%}
+ .header-title{font-size:13px}
+ .btn-header{padding:5px 8px;font-size:11px}
+ #run{flex-shrink:0}
+}
 </style>
 </head>
 <body>
@@ -381,6 +424,7 @@ html[data-theme=dark] kbd{background:rgba(255,255,255,.1);border-color:rgba(255,
    </div>
   <span class="hspace"></span>
   <span id="state" class="live-pill idle"><span class="pulsing-dot"></span><span id="state-text">connecting</span></span>
+  <button id="sidebar-toggle" class="sidebar-toggle" title="Toggle agent roster">☰</button>
   <button id="focus-toggle" class="btn-header" title="Toggle Presenter/Focus Mode (Shortcut: f)" aria-label="Toggle Presenter Mode">⛶ Focus</button>
   <button id="theme" class="btn-header" title="Switch light/dark mode">☾</button>
   <button id="settings-btn" class="btn-header" title="Runtime settings: demo mode and LLM key">⚙ Settings</button>
@@ -401,12 +445,11 @@ html[data-theme=dark] kbd{background:rgba(255,255,255,.1);border-color:rgba(255,
       <button id="mode-llm" class="seg-btn">LLM (real inference)</button>
      </div>
      <div class="settings-hint">Applies from the next <b>Restart Demo</b>. Deterministic needs no key and always tells the same story; LLM mode runs real inference through Mozaik.</div>
-     <div class="settings-hint llm-note" id="llm-note" style="display:none">Heads up: on this public site, LLM mode would use <b>this server's shared key</b> and spend its credits. Better: <a href="https://github.com/jamilxt/ops-room" target="_blank" rel="noopener">clone the repo</a> and run it locally with your own OpenAI key — <span class="code">git clone https://github.com/jamilxt/ops-room &amp;&amp; cd ops-room &amp;&amp; npm install &amp;&amp; npm run web</span></div>
+     <div class="settings-hint llm-note" id="llm-note" style="display:none">LLM mode is turned off on this public site to protect the shared key. Better: <a href="https://github.com/jamilxt/ops-room" target="_blank" rel="noopener">clone the repo</a> and run it locally with your own OpenAI key — <span class="code">git clone https://github.com/jamilxt/ops-room &amp;&amp; cd ops-room &amp;&amp; npm install &amp;&amp; npm run web</span></div>
     </div>
-    <div class="settings-row" id="key-row">
-     <div class="settings-label">OpenAI API key <span class="settings-opt">(only needed for LLM mode)</span></div>
-     <input id="key-input" type="password" placeholder="sk-..." autocomplete="off" spellcheck="false"/>
-     <div class="settings-hint" id="key-hint">Sent to this server for the current session only — never stored on disk, never sent anywhere else, never shown back.</div>
+    <div class="settings-row" id="key-row" style="display:none">
+     <div class="settings-label">OpenAI API key <span class="settings-opt">(server-side only, not settable here)</span></div>
+     <div class="settings-hint" id="key-hint"></div>
     </div>
     <div id="settings-msg" class="settings-msg"></div>
     <div class="settings-actions">
@@ -1009,7 +1052,6 @@ themeBtn.onclick=()=>{applyTheme(document.documentElement.getAttribute("data-the
 /* ---- Runtime settings (mode + LLM key) ---- */
 const settingsModal=document.getElementById("settings-modal")
 const settingsMsg=document.getElementById("settings-msg")
-const keyInput=document.getElementById("key-input")
 const modeDetBtn=document.getElementById("mode-det")
 const modeLlmBtn=document.getElementById("mode-llm")
 let pendingMode=null // what the segmented control currently shows
@@ -1023,26 +1065,13 @@ function setSegUI(mode){
 }
 function openSettings(){
  settingsMsg.textContent="";settingsMsg.className="settings-msg"
- keyInput.value=""
- try{keyInput.value=localStorage.getItem("opsroom-llm-key")||""}catch(e){}
  fetch("/config").then(r=>r.json()).then(c=>{
   setSegUI(c.mode)
-  document.getElementById("key-hint").textContent=c.hasKey
-   ?"Key is stored in this browser (localStorage) and re-sent to the server on every page load — it is never stored server-side."
-   :"Stored in this browser (localStorage) and re-sent to the server on page load — never stored server-side."
  }).catch(()=>setSegUI("deterministic"))
  settingsModal.style.display="flex"
 }
 function closeSettings(){settingsModal.style.display="none"}
 function showMsg(text,ok){settingsMsg.textContent=text;settingsMsg.className="settings-msg "+(ok?"ok":"err")}
-
-/** Push the browser-stored key to the server for this session (memory-only there). */
-function syncKeyToServer(){
- let k=null;try{k=localStorage.getItem("opsroom-llm-key")}catch(e){}
- if(!k)return
- fetch("/config",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({mode:"llm",apiKey:k})}).catch(()=>{})
-}
-syncKeyToServer()
 
 document.getElementById("settings-btn").onclick=openSettings
 document.getElementById("settings-close").onclick=closeSettings
@@ -1050,14 +1079,11 @@ settingsModal.onclick=(ev)=>{if(ev.target===settingsModal)closeSettings()}
 modeDetBtn.onclick=()=>setSegUI("deterministic")
 modeLlmBtn.onclick=()=>setSegUI("llm")
 document.getElementById("settings-save").onclick=()=>{
+ // Key entry is intentionally not offered here: LLM mode needs a key set
+ // server-side (.env). The note in the modal points public visitors to
+ // clone-and-run-locally instead. Posting mode:llm without a key is
+ // rejected by the server when no server-side key exists.
  const body={mode:pendingMode}
- const k=keyInput.value.trim()
- if(pendingMode==="llm"&&k){
-  body.apiKey=k
-  try{localStorage.setItem("opsroom-llm-key",k)}catch(e){}
- }else if(pendingMode==="deterministic"){
-  try{localStorage.removeItem("opsroom-llm-key")}catch(e){}
- }
  fetch("/config",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})
   .then(async r=>{
    const data=await r.json().catch(()=>({}))
@@ -1071,6 +1097,21 @@ document.getElementById("settings-save").onclick=()=>{
 }
 
 // Presenter / Focus Mode
+const sidebarToggle=document.getElementById("sidebar-toggle")
+if(sidebarToggle){
+ sidebarToggle.onclick=()=>{
+  const open=!document.body.classList.contains("sidebar-open")
+  document.body.classList.toggle("sidebar-open",open)
+  sidebarToggle.textContent=open?"✕":"☰"
+ }
+ // tapping the feed area closes the drawer
+ document.getElementById("feedwrap").addEventListener("click",()=>{
+  if(document.body.classList.contains("sidebar-open")){
+   document.body.classList.remove("sidebar-open")
+   sidebarToggle.textContent="☰"
+  }
+ })
+}
 const focusBtn=document.getElementById("focus-toggle")
 function toggleFocus(enable){
  const isFocus=enable!==undefined?enable:!document.body.classList.contains("focus-mode")
