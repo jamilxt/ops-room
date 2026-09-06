@@ -7,7 +7,6 @@ Concurrent AI agents that fight a production incident together — built for the
 ```bash
 git clone https://github.com/jamilxt/ops-room.git
 cd ops-room
-git checkout spike/v4
 npm install
 npm run web        # open http://localhost:8788 — deterministic demo, no key needed
 ```
