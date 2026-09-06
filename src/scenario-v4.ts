@@ -37,6 +37,12 @@ export interface ScenarioOptions {
 	interactive?: boolean
 	reportPath?: string
 	killSleuthAt7s?: boolean
+	/**
+	 * Explicit mode override from the web console's settings panel.
+	 * Unset → env-based detection (OPENAI_API_KEY/GEMINI_API_KEY present
+	 * means LLM mode), which is what the CLI entrypoint relies on.
+	 */
+	forceMode?: "llm" | "deterministic"
 }
 
 export interface ScenarioResult {
@@ -60,7 +66,12 @@ export function runScenarioV4(options: ScenarioOptions = {}, hooks: ScenarioHook
 	return new Promise((resolve) => {
 		const say = hooks.onLine ?? ((line: string) => console.log(line))
 		ensureRuntime()
-		const llm = Boolean(process.env.OPENAI_API_KEY ?? process.env.GEMINI_API_KEY)
+		const llm =
+			options.forceMode === "llm"
+				? true
+				: options.forceMode === "deterministic"
+					? false
+					: Boolean(process.env.OPENAI_API_KEY ?? process.env.GEMINI_API_KEY)
 
 		const feed = createIncidentFeed(timeline)
 		const triage = createTriageAgent(llm)

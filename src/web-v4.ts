@@ -20,6 +20,19 @@ let busy = false
 let startedOnce = false
 let pendingDecision: ((answer: string) => void) | null = null
 
+// ---- runtime config (set from the web console, memory-only) -----------------
+// No API key is ever written to disk or served back to the client — POST /config
+// accepts it, it lands in process.env for the Mozaik adapters to pick up, and
+// GET /config only reports booleans. A run reads the env at start, so toggling
+// takes effect on the next "Restart Demo".
+let configured: { mode: "llm" | "deterministic" } = {
+	mode: process.env.OPENAI_API_KEY || process.env.GEMINI_API_KEY ? "llm" : "deterministic",
+}
+
+function modeLabel(): string {
+	return configured.mode === "llm" ? "LLM mode" : "deterministic demo"
+}
+
 type AgentSpec = { id: string; name: string; role: string; group: string }
 
 const AGENT_INFO: AgentSpec[] = [
@@ -63,7 +76,7 @@ async function startRun(): Promise<void> {
 	})
 	try {
 		await runScenarioV4(
-			{ interactive: true, killSleuthAt7s: true },
+			{ interactive: true, killSleuthAt7s: true, forceMode: configured.mode },
 			{
 				onLine: (line) => broadcast({ type: "row", line }),
 				askHuman: (prompt) =>
@@ -119,7 +132,7 @@ async function handler(req: IncomingMessage, res: ServerResponse): Promise<void>
 		const firstTab = !startedOnce && !busy
 		broadcast({
 			type: "hello",
-			mode: process.env.OPENAI_API_KEY || process.env.GEMINI_API_KEY ? "LLM mode" : "deterministic demo",
+			mode: modeLabel(),
 		})
 		if (firstTab) void startRun()
 		req.on("close", () => {
@@ -145,6 +158,44 @@ async function handler(req: IncomingMessage, res: ServerResponse): Promise<void>
 	} else if (url === "/agents") {
 		res.writeHead(200, { "Content-Type": "application/json" })
 		res.end(JSON.stringify(AGENT_INFO))
+	} else if (url === "/config" && req.method === "GET") {
+		// Reports capability booleans only — never echoes the key itself.
+		res.writeHead(200, { "Content-Type": "application/json" })
+		res.end(
+			JSON.stringify({
+				mode: configured.mode,
+				label: modeLabel(),
+				hasKey: Boolean(process.env.OPENAI_API_KEY || process.env.GEMINI_API_KEY),
+			}),
+		)
+	} else if (url === "/config" && req.method === "POST") {
+		let body = ""
+		req.on("data", (c) => (body += c))
+		req.on("end", () => {
+			let parsed: { mode?: string; apiKey?: string } = {}
+			try {
+				parsed = JSON.parse(body)
+			} catch {}
+			if (parsed.mode === "llm") {
+				if (parsed.apiKey && parsed.apiKey.trim()) {
+					// Memory-only: the key is used by the Mozaik OpenAI adapters via
+					// process.env and is never persisted or served back.
+					process.env.OPENAI_API_KEY = parsed.apiKey.trim()
+					delete process.env.OPENAI_BASE_URL // guard against pointing a pasted key at a stale base URL
+				}
+				if (!process.env.OPENAI_API_KEY && !process.env.GEMINI_API_KEY) {
+					res.writeHead(400, { "Content-Type": "application/json" })
+					res.end(JSON.stringify({ error: "LLM mode needs an OpenAI API key (set it in the same request)." }))
+					return
+				}
+				configured.mode = "llm"
+			} else if (parsed.mode === "deterministic") {
+				configured.mode = "deterministic"
+				// Key stays in memory (harmless); mode is what the scenario consults.
+			}
+			res.writeHead(200, { "Content-Type": "application/json" })
+			res.end(JSON.stringify({ mode: configured.mode, label: modeLabel() }))
+		})
 	} else if (url === "/timeline" && (req.method === "GET" || req.method === "HEAD")) {
 		const fs = await import("node:fs/promises")
 		const path = await import("node:path")
