@@ -964,7 +964,11 @@ function addRecap(sig,fnd,ch,holds){
  let lanesHtml=""
  for(const k of activeLanes){
   const segs=laneSegments[k]
-  const bars=segs.map(s=>'<span class="rc-lane-bar" style="left:'+((s[0]/maxT)*100).toFixed(1)+'%;width:'+Math.max(1.2,((s[1]-s[0])/maxT)*100).toFixed(1)+'%"></span>').join("")
+  const bars=segs.map(s=>{
+   const w=Math.max(1.2,((s[1]-s[0])/maxT)*100)
+   const left=Math.min((s[0]/maxT)*100,100-w)
+   return '<span class="rc-lane-bar" style="left:'+left.toFixed(1)+'%;width:'+w.toFixed(1)+'%"></span>'
+  }).join("")
   lanesHtml+='<div class="rc-lane"><span class="rc-lane-name" title="'+esc(NAMES[k]||k)+'">'+esc(k)+'</span><span class="rc-lane-track">'+bars+'</span></div>'
  }
  const agentCount=activeLanes.length
