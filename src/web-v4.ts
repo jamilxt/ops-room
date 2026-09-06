@@ -129,12 +129,13 @@ async function handler(req: IncomingMessage, res: ServerResponse): Promise<void>
 		})
 		res.write(": connected\n\n")
 		events.push(res)
-		const firstTab = !startedOnce && !busy
 		broadcast({
 			type: "hello",
 			mode: modeLabel(),
 		})
-		if (firstTab) void startRun()
+		// Auto-run is intentionally off: judges start the demo themselves via
+		// the ▶ button. Keeps visits cheap and avoids the stuck "connecting"
+		// first impression if SSE hiccups during page load.
 		req.on("close", () => {
 			events = events.filter((e) => e !== res)
 		})

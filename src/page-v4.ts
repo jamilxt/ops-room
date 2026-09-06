@@ -322,6 +322,14 @@ html[data-theme=dark] kbd{background:rgba(255,255,255,.1);border-color:rgba(255,
 @keyframes shimmer{to{background-position:-200% 0}}
 .skeltitle{text-align:left;color:var(--dim);font-size:12.5px;font-weight:600;margin-top:6px}
 
+/* Welcome / idle card */
+.welcome-icon{font-size:34px;text-align:center;margin-bottom:6px}
+.welcome-title{text-align:center;font-size:17px;font-weight:800;letter-spacing:-.2px}
+.welcome-sub{text-align:center;color:var(--dim);font-size:13px;line-height:1.55;margin:10px 0 16px}
+.welcome-hint{text-align:center;color:var(--faint);font-size:11.5px;margin-top:12px;line-height:1.5}
+#feed .skelbox{text-align:center}
+#feed .skelbox .btn-action{font-size:13.5px;padding:9px 22px}
+
 @media(max-width:860px){aside{display:none}.hud-item{min-width:110px}}
 
 /* Runtime settings modal */
@@ -423,12 +431,12 @@ html[data-theme=dark] kbd{background:rgba(255,255,255,.1);border-color:rgba(255,
     <span id="guard-badge" class="guard-badge" title="Interceptor audits: state-changing tool calls reviewed this run" style="display:none">0 audits</span>
    </div>
   <span class="hspace"></span>
-  <span id="state" class="live-pill idle"><span class="pulsing-dot"></span><span id="state-text">connecting</span></span>
+  <span id="state" class="live-pill idle"><span class="pulsing-dot"></span><span id="state-text">ready</span></span>
   <button id="sidebar-toggle" class="sidebar-toggle" title="Toggle agent roster">☰</button>
   <button id="focus-toggle" class="btn-header" title="Toggle Presenter/Focus Mode (Shortcut: f)" aria-label="Toggle Presenter Mode">⛶ Focus</button>
   <button id="theme" class="btn-header" title="Switch light/dark mode">☾</button>
   <button id="settings-btn" class="btn-header" title="Runtime settings: demo mode and LLM key">⚙ Settings</button>
-  <button id="run" class="btn-header">▶ Restart Demo</button>
+  <button id="run" class="btn-header">▶ Start Demo</button>
  </header>
 
  <div id="settings-modal" class="settings-modal" style="display:none">
@@ -511,12 +519,12 @@ html[data-theme=dark] kbd{background:rgba(255,255,255,.1);border-color:rgba(255,
  </div>
 
  <div id="feedwrap"><div id="feed" role="feed" aria-label="Incident Event Feed" aria-live="polite">
-  <div class="skelbox">
-   <div class="skelline w1"></div>
-   <div class="skelline w2"></div>
-   <div class="skelline w3"></div>
-   <div class="skelline w4"></div>
-   <div class="skeltitle">Spinning up incident response room…</div>
+  <div class="skelbox" id="welcome-box">
+   <div class="welcome-icon">⚡</div>
+   <div class="welcome-title">Incident war room ready</div>
+   <div class="welcome-sub">A production incident is about to unfold: a canary rollout goes bad and 9 AI agents will triage it together — a human safety gate decides the ending.</div>
+   <button id="welcome-start" class="btn-action primary">▶ Start Demo</button>
+   <div class="welcome-hint">Deterministic replay — no API key, runs about a minute. Use ⚙ Settings for run modes.</div>
   </div>
  </div><button id="jump-latest" class="jump-btn" hidden>↓ Jump to latest</button></div>
 </main>
@@ -532,7 +540,7 @@ let es=null,pending=null,agentFilter=null,categoryFilter="all",msgCount=0,lastCo
 let countSafety=0,countEvidence=0,countTelemetry=0
 const agentCounts={}
 let rosterIds=["deploy","alert","metric","log","triage","sleuth","healer","librarian","commander","oncall","comms","scribe"]
-let startTime=Date.now(),timerInterval=null,isTimerPaused=false
+let startTime=Date.now(),timerInterval=null,isTimerPaused=true // idle until the demo starts
 function tickTimer(){
  if(isTimerPaused)return
  const elapsed=Math.max(0,((Date.now()-startTime)/1000)).toFixed(1)
@@ -1007,7 +1015,8 @@ function renderGuard(line,blocked){
 }
 
 function start(){
- startTimer()
+ // Timer starts only when the demo actually runs (startTimer is called on
+ // the "live" state event); the landing page shows a frozen T+0.0s.
  es=new EventSource("/events")
  es.onmessage=(ev)=>{
   let d;try{d=JSON.parse(ev.data)}catch(e){return}
@@ -1021,7 +1030,16 @@ function start(){
  }
 }
 
-document.getElementById("run").onclick=async()=>{await fetch("/run",{method:"POST"})}
+document.getElementById("run").onclick=async()=>{await startDemo()}
+async function startDemo(){
+ const wb=document.getElementById("welcome-box")
+ if(wb)wb.remove()
+ const runBtn=document.getElementById("run")
+ if(runBtn)runBtn.textContent="▶ Restart Demo"
+ await fetch("/run",{method:"POST"})
+}
+const welcomeStart=document.getElementById("welcome-start")
+if(welcomeStart)welcomeStart.onclick=()=>startDemo()
 document.getElementById("clearfilter").onclick=()=>{
  agentFilter=null
  for(const x of document.querySelectorAll(".agent"))x.classList.remove("sel")
@@ -1130,7 +1148,7 @@ document.addEventListener("keydown",(ev)=>{
  const isTyping=document.activeElement&&(document.activeElement.tagName==="INPUT"||document.activeElement.tagName==="TEXTAREA")
  if(ev.key==="y"&&pending)decide(true)
  else if(ev.key==="n"&&pending)decide(false)
- else if(ev.key==="r"&&!pending&&!isTyping)fetch("/run",{method:"POST"})
+ else if(ev.key==="r"&&!pending&&!isTyping)startDemo()
  else if(ev.key==="f"&&!isTyping)toggleFocus()
 })
 
