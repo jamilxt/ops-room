@@ -323,6 +323,29 @@ html[data-theme=dark] kbd{background:rgba(255,255,255,.1);border-color:rgba(255,
 .skeltitle{text-align:left;color:var(--dim);font-size:12.5px;font-weight:600;margin-top:6px}
 
 @media(max-width:860px){aside{display:none}.hud-item{min-width:110px}}
+
+/* Runtime settings modal */
+.settings-modal{position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px}
+.settings-card{background:var(--pane);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow-md);width:min(520px,100%);animation:cardpop .18s ease-out}
+.settings-head{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--line)}
+.settings-title{font-size:15px;font-weight:800;letter-spacing:-.2px}
+.settings-x{background:none;border:none;font-size:15px;color:var(--dim);cursor:pointer;padding:4px 8px;border-radius:6px}
+.settings-x:hover{background:var(--hover);color:var(--text)}
+.settings-body{display:flex;flex-direction:column;gap:18px;padding:18px 20px}
+.settings-label{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;color:var(--dim);margin-bottom:8px}
+.settings-opt{font-weight:600;text-transform:none;letter-spacing:0;color:var(--faint)}
+.settings-hint{font-size:11.5px;color:var(--faint);line-height:1.5;margin-top:7px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg-btn{padding:8px 16px;font-size:12.5px;font-weight:700;background:var(--pane2);border:none;color:var(--dim);cursor:pointer;transition:all .12s}
+.seg-btn+.seg-btn{border-left:1px solid var(--line)}
+.seg-btn:hover{background:var(--hover)}
+.seg-btn.active{background:var(--primary);color:#fff}
+#key-input{width:100%;box-sizing:border-box;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--pane2);color:var(--text);font-size:13px;font-family:ui-monospace,Menlo,monospace}
+#key-input:focus{outline:none;border-color:var(--primary);background:var(--pane)}
+.settings-msg{font-size:12.5px;font-weight:600;min-height:16px}
+.settings-msg.err{color:var(--red)}
+.settings-msg.ok{color:var(--green)}
+.settings-actions{display:flex;justify-content:flex-end;gap:10px}
 </style>
 </head>
 <body>
@@ -349,8 +372,37 @@ html[data-theme=dark] kbd{background:rgba(255,255,255,.1);border-color:rgba(255,
   <span id="state" class="live-pill idle"><span class="pulsing-dot"></span><span id="state-text">connecting</span></span>
   <button id="focus-toggle" class="btn-header" title="Toggle Presenter/Focus Mode (Shortcut: f)" aria-label="Toggle Presenter Mode">⛶ Focus</button>
   <button id="theme" class="btn-header" title="Switch light/dark mode">☾</button>
+  <button id="settings-btn" class="btn-header" title="Runtime settings: demo mode and LLM key">⚙ Settings</button>
   <button id="run" class="btn-header">▶ Restart Demo</button>
  </header>
+
+ <div id="settings-modal" class="settings-modal" style="display:none">
+  <div class="settings-card">
+   <div class="settings-head">
+    <div class="settings-title">Runtime Settings</div>
+    <button id="settings-close" class="settings-x" aria-label="Close settings">✕</button>
+   </div>
+   <div class="settings-body">
+    <div class="settings-row">
+     <div class="settings-label">Run mode</div>
+     <div class="seg" role="group">
+      <button id="mode-det" class="seg-btn">Deterministic</button>
+      <button id="mode-llm" class="seg-btn">LLM (real inference)</button>
+     </div>
+     <div class="settings-hint">Applies from the next <b>Restart Demo</b>. Deterministic needs no key and always tells the same story; LLM mode runs real inference through Mozaik.</div>
+    </div>
+    <div class="settings-row" id="key-row">
+     <div class="settings-label">OpenAI API key <span class="settings-opt">(only needed for LLM mode)</span></div>
+     <input id="key-input" type="password" placeholder="sk-..." autocomplete="off" spellcheck="false"/>
+     <div class="settings-hint" id="key-hint">Sent to this server for the current session only — never stored on disk, never sent anywhere else, never shown back.</div>
+    </div>
+    <div id="settings-msg" class="settings-msg"></div>
+    <div class="settings-actions">
+     <button id="settings-save" class="btn-action primary">Save &amp; close</button>
+    </div>
+   </div>
+  </div>
+ </div>
 
  <div class="hud">
   <div class="hud-item">
@@ -941,6 +993,68 @@ function applyTheme(t){
 let savedTheme=null;try{savedTheme=localStorage.getItem("opsroom-theme")}catch(e){}
 applyTheme(savedTheme||(window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"))
 themeBtn.onclick=()=>{applyTheme(document.documentElement.getAttribute("data-theme")==="dark"?"light":"dark")}
+
+/* ---- Runtime settings (mode + LLM key) ---- */
+const settingsModal=document.getElementById("settings-modal")
+const settingsMsg=document.getElementById("settings-msg")
+const keyInput=document.getElementById("key-input")
+const modeDetBtn=document.getElementById("mode-det")
+const modeLlmBtn=document.getElementById("mode-llm")
+let pendingMode=null // what the segmented control currently shows
+
+function setSegUI(mode){
+ pendingMode=mode
+ modeDetBtn.classList.toggle("active",mode==="deterministic")
+ modeLlmBtn.classList.toggle("active",mode==="llm")
+}
+function openSettings(){
+ settingsMsg.textContent="";settingsMsg.className="settings-msg"
+ keyInput.value=""
+ try{keyInput.value=localStorage.getItem("opsroom-llm-key")||""}catch(e){}
+ fetch("/config").then(r=>r.json()).then(c=>{
+  setSegUI(c.mode)
+  document.getElementById("key-hint").textContent=c.hasKey
+   ?"Key is stored in this browser (localStorage) and re-sent to the server on every page load — it is never stored server-side."
+   :"Stored in this browser (localStorage) and re-sent to the server on page load — never stored server-side."
+ }).catch(()=>setSegUI("deterministic"))
+ settingsModal.style.display="flex"
+}
+function closeSettings(){settingsModal.style.display="none"}
+function showMsg(text,ok){settingsMsg.textContent=text;settingsMsg.className="settings-msg "+(ok?"ok":"err")}
+
+/** Push the browser-stored key to the server for this session (memory-only there). */
+function syncKeyToServer(){
+ let k=null;try{k=localStorage.getItem("opsroom-llm-key")}catch(e){}
+ if(!k)return
+ fetch("/config",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({mode:"llm",apiKey:k})}).catch(()=>{})
+}
+syncKeyToServer()
+
+document.getElementById("settings-btn").onclick=openSettings
+document.getElementById("settings-close").onclick=closeSettings
+settingsModal.onclick=(ev)=>{if(ev.target===settingsModal)closeSettings()}
+modeDetBtn.onclick=()=>setSegUI("deterministic")
+modeLlmBtn.onclick=()=>setSegUI("llm")
+document.getElementById("settings-save").onclick=()=>{
+ const body={mode:pendingMode}
+ const k=keyInput.value.trim()
+ if(pendingMode==="llm"&&k){
+  body.apiKey=k
+  try{localStorage.setItem("opsroom-llm-key",k)}catch(e){}
+ }else if(pendingMode==="deterministic"){
+  try{localStorage.removeItem("opsroom-llm-key")}catch(e){}
+ }
+ fetch("/config",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})
+  .then(async r=>{
+   const data=await r.json().catch(()=>({}))
+   if(!r.ok){showMsg(data.error||"Could not save settings.",false);return}
+   const mt=document.getElementById("mode-tag")
+   if(mt)mt.textContent=data.label==="LLM mode"?"LLM Mode":"Deterministic Demo"
+   showMsg("Saved — applies from the next Restart Demo.",true)
+   setTimeout(closeSettings,900)
+  })
+  .catch(()=>showMsg("Network error while saving.",false))
+}
 
 // Presenter / Focus Mode
 const focusBtn=document.getElementById("focus-toggle")
